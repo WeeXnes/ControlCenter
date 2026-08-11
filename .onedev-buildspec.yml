@@ -1,0 +1,88 @@
+version: 43
+jobs:
+- name: Build & Package Release Tarball
+  steps:
+  - type: CheckoutStep
+    name: checkout code
+    cloneCredential:
+      type: DefaultCredential
+    withLfs: false
+    withSubmodules: false
+    condition: SUCCESSFUL
+    optional: false
+  - type: CommandStep
+    name: Extract Version
+    runInContainer: false
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        echo "Extracting version from package.json..."
+        grep -oP '"version":\s*"\K[^"]+' package.json > version.txt || echo "1.0.0" > version.txt
+        echo "Version extracted: $(cat version.txt)"
+    useTTY: true
+    condition: SUCCESSFUL
+    optional: false
+  - type: CommandStep
+    name: Build and Package Release Tarball
+    runInContainer: false
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        VERSION=$(cat version.txt)
+        PKG_NAME="controlcenter-web"
+        BUILD_DIR="package_build"
+        RELEASE_DIR="release"
+
+        echo "Installing dependencies..."
+        npm install
+
+        echo "Building Nuxt application..."
+        npm run build
+
+        echo "Pruning devDependencies..."
+        npm prune --omit=dev
+
+        echo "Assembling package structure..."
+        rm -rf "$BUILD_DIR" "$RELEASE_DIR"
+        mkdir -p "$BUILD_DIR" "$RELEASE_DIR"
+
+        # Copy .output contents and systemd service installer script
+        cp -r .output/* "$BUILD_DIR/"
+        if [ -f install-service.sh ]; then
+          cp install-service.sh "$BUILD_DIR/"
+          chmod +x "$BUILD_DIR/install-service.sh"
+        fi
+
+        # Replace symlinked/bundled server/node_modules with real production node_modules
+        rm -rf "$BUILD_DIR/server/node_modules"
+        cp -r node_modules "$BUILD_DIR/server/"
+
+        echo "Compressing release tarball..."
+        TARBALL_NAME="${PKG_NAME}-${VERSION}.tar.gz"
+        (cd "$BUILD_DIR" && tar -czvf "../${RELEASE_DIR}/${TARBALL_NAME}" .)
+
+        echo "Package created: ${RELEASE_DIR}/${TARBALL_NAME}"
+        rm -rf "$BUILD_DIR"
+    useTTY: true
+    condition: SUCCESSFUL
+    optional: false
+  - type: SetBuildVersionStep
+    name: set build version
+    buildVersion: '@file:version.txt@'
+    condition: ALWAYS
+    optional: false
+  - type: PublishArtifactStep
+    name: Upload Artifacts
+    sourcePath: release
+    artifacts: '**'
+    condition: ALWAYS
+    optional: false
+  jobExecutor: Builder
+  triggers:
+  - type: BranchUpdateTrigger
+    userMatch: anyone
+  - type: PullRequestUpdateTrigger
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 14400
