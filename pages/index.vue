@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col lg:flex-row gap-5 min-h-[calc(100vh-140px)]">
+  <div class="flex flex-col lg:flex-row items-stretch gap-5 min-h-[calc(100vh-140px)]">
     <!-- Machines Sidebar -->
     <MachineSidebar 
       :machines="machines"

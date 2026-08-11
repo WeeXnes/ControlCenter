@@ -1,6 +1,6 @@
 {
   "name": "website",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,6 +23,7 @@
     "clean-db": "node bin/clean-db.cjs"
   },
   "dependencies": {
+    "@iconify-json/material-symbols": "^1.2.88",
     "@nuxt/icon": "^1.10.3",
     "@nuxtjs/sitemap": "^7.4.3",
     "@nuxtjs/tailwindcss": "^6.13.1",
