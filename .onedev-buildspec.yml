@@ -114,7 +114,7 @@ jobs:
     interpreter:
       type: DefaultInterpreter
       commands: |
-        repo_url="ssh://aur@aur.archlinux.org/controlcenter.git"
+        repo_url="ssh://aur@@aur.archlinux.org/controlcenter.git"
         repo_dir="controlcenter"
 
         git clone "$repo_url"
