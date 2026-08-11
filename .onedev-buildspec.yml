@@ -83,6 +83,31 @@ jobs:
     artifacts: '**'
     condition: ALWAYS
     optional: false
+  - type: CommandStep
+    name: check if tag exists
+    runInContainer: false
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        version=$(cat version.txt)
+        echo "Checking if tag '$version' exists on origin..."
+
+        if git ls-remote --tags origin | grep -q "refs/tags/${version}$"; then
+            echo "Tag '$version' already exists."
+            exit 1
+        else
+            echo "Tag '$version' does not exist. Proceeding to create tag."
+            exit 0
+        fi
+    useTTY: true
+    condition: SUCCESSFUL
+    optional: false
+  - type: CreateTagStep
+    name: create tag
+    tagName: '@file:version.txt@'
+    tagMessage: 'Release @file:version.txt@'
+    condition: SUCCESSFUL
+    optional: false
   jobExecutor: Builder
   triggers:
   - type: BranchUpdateTrigger
