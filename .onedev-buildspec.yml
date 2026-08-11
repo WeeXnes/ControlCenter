@@ -92,3 +92,53 @@ jobs:
   maxRetries: 3
   retryDelay: 30
   timeout: 14400
+
+- name: Release Stable AUR
+  steps:
+  - type: CheckoutStep
+    name: checkout code
+    cloneCredential:
+      type: DefaultCredential
+    withLfs: false
+    withSubmodules: false
+    condition: SUCCESSFUL
+    optional: false
+  - type: SetBuildVersionStep
+    name: set build version
+    buildVersion: '@tag@'
+    condition: ALWAYS
+    optional: false
+  - type: CommandStep
+    name: Update Stable AUR Package
+    runInContainer: false
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        repo_url="ssh://aur@aur.archlinux.org/controlcenter.git"
+        repo_dir="controlcenter"
+
+        git clone "$repo_url"
+
+        version=@tag@
+
+        sed -i "s/^pkgver=.*/pkgver=${version}/" "$repo_dir/PKGBUILD"
+
+        (
+          cd "$repo_dir" || exit 1
+          makepkg --printsrcinfo > .SRCINFO
+          git add PKGBUILD .SRCINFO
+          git commit -m "Automatically updated version to ${version}"
+          git push
+        )
+    useTTY: true
+    condition: SUCCESSFUL
+    optional: false
+  jobExecutor: Builder
+  triggers:
+  - type: TagCreateTrigger
+    branches: master
+    projects: ControlCenter
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 14400
