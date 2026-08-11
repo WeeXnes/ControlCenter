@@ -46,6 +46,12 @@ if [ ! -f "$ENTRY_POINT" ]; then
     exit 1
 fi
 
+# Rebuild native modules if npm is available to ensure GLIBC compatibility on target OS
+if command -v npm &>/dev/null; then
+    echo "[+] Rebuilding native modules for local GLIBC compatibility..."
+    (cd "$INSTALL_DIR/server" && npm rebuild &>/dev/null || true)
+fi
+
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 # Require root/sudo to write systemd unit

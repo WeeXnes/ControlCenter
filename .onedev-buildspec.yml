@@ -46,16 +46,22 @@ jobs:
         rm -rf "$BUILD_DIR" "$RELEASE_DIR"
         mkdir -p "$BUILD_DIR" "$RELEASE_DIR"
 
-        # Copy .output contents and systemd service installer script
+        # Copy .output contents, installer script, and start script
         cp -r .output/* "$BUILD_DIR/"
+        cp package.json "$BUILD_DIR/"
         if [ -f install-service.sh ]; then
           cp install-service.sh "$BUILD_DIR/"
           chmod +x "$BUILD_DIR/install-service.sh"
+        fi
+        if [ -f start.sh ]; then
+          cp start.sh "$BUILD_DIR/"
+          chmod +x "$BUILD_DIR/start.sh"
         fi
 
         # Replace symlinked/bundled server/node_modules with real production node_modules
         rm -rf "$BUILD_DIR/server/node_modules"
         cp -r node_modules "$BUILD_DIR/server/"
+        cp package.json "$BUILD_DIR/server/"
 
         echo "Compressing release tarball..."
         TARBALL_NAME="${PKG_NAME}-${VERSION}.tar.gz"
