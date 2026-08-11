@@ -26,7 +26,7 @@
               {{ telemetry?.os || 'Linux OS' }}
             </span>
             <span class="flex items-center gap-1.5">
-              <Icon name="material-symbols:memory-rounded" size="16" class="text-secondary" />
+              <Icon name="material-symbols:developer-board-outline-rounded" size="16" class="text-secondary" />
               {{ telemetry?.cpuModel || 'CPU' }} ({{ telemetry?.cpuCores || 1 }} Cores)
             </span>
             <span class="flex items-center gap-1.5">
@@ -119,7 +119,7 @@
           title="CPU Usage"
           label="Processor Load"
           :percentage="telemetry?.cpuUsagePercent || 0"
-          icon="material-symbols:memory-rounded"
+          icon="material-symbols:developer-board-outline-rounded"
           color="primary"
           detailLabel="Cores"
           :detailValue="`${telemetry?.cpuCores || 1} Cores`"
@@ -129,7 +129,7 @@
           title="RAM Memory"
           label="RAM Allocated"
           :percentage="telemetry?.ramUsagePercent || 0"
-          icon="material-symbols:sd-storage-outline-rounded"
+          icon="material-symbols:memory-rounded"
           color="secondary"
           detailLabel="Used / Total"
           :detailValue="formatBytesPair(telemetry?.ramUsedBytes, telemetry?.ramTotalBytes)"
