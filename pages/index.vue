@@ -7,6 +7,7 @@
       :telemetryMap="telemetryMap"
       @select-machine="selectMachine"
       @open-add-modal="openAddModal"
+      @reorder-machine="handleReorderMachine"
     />
 
     <!-- Main Content Area -->
@@ -185,6 +186,33 @@ const handleSaveMachine = async (formData: any) => {
     }
   } catch (err: any) {
     alert(`Failed to save machine: ${err.message}`)
+  }
+}
+
+const handleReorderMachine = async ({ id, direction }: { id: string, direction: 'up' | 'down' }) => {
+  const index = machines.value.findIndex(m => m.id === id)
+  if (index === -1) return
+
+  const newIndex = direction === 'up' ? index - 1 : index + 1
+  if (newIndex < 0 || newIndex >= machines.value.length) return
+
+  // Swap locally for instant feedback
+  const mList = [...machines.value]
+  const temp = mList[index]
+  mList[index] = mList[newIndex]
+  mList[newIndex] = temp
+  
+  machines.value = mList
+
+  // Persist to backend
+  try {
+    const machineIds = mList.map(m => m.id)
+    await $fetch('/api/machines/reorder', {
+      method: 'PUT',
+      body: { machineIds }
+    })
+  } catch (err: any) {
+    alert(`Failed to save new order: ${err.message}`)
   }
 }
 

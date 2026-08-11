@@ -78,9 +78,27 @@
             </span>
           </div>
 
-          <span class="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-base-300/60 text-base-content/60">
-            {{ machine.ip }}
-          </span>
+          <div class="flex items-center gap-1.5">
+            <!-- Reorder Buttons -->
+            <div v-if="!searchQuery.trim()" class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                @click.stop="$emit('reorder-machine', { id: machine.id, direction: 'up' })" 
+                class="hover:text-primary text-base-content/40 hover:bg-base-content/10 rounded p-0.5 transition-colors flex items-center justify-center"
+              >
+                <Icon name="material-symbols:keyboard-arrow-up-rounded" size="14" />
+              </button>
+              <button 
+                @click.stop="$emit('reorder-machine', { id: machine.id, direction: 'down' })" 
+                class="hover:text-primary text-base-content/40 hover:bg-base-content/10 rounded p-0.5 transition-colors flex items-center justify-center"
+              >
+                <Icon name="material-symbols:keyboard-arrow-down-rounded" size="14" />
+              </button>
+            </div>
+
+            <span class="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-base-300/60 text-base-content/60">
+              {{ machine.ip }}
+            </span>
+          </div>
         </div>
 
         <!-- Quick Stats snippet -->
@@ -125,7 +143,7 @@ const props = defineProps<{
   telemetryMap: Record<string, any>
 }>()
 
-defineEmits(['select-machine', 'open-add-modal'])
+defineEmits(['select-machine', 'open-add-modal', 'reorder-machine'])
 
 const searchQuery = ref('')
 

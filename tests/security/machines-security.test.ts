@@ -33,6 +33,15 @@ describe('Machine API Security - Unauthenticated Access Blocked', () => {
     expect(res.status).toBe(401);
   });
 
+  it(`PUT /api/machines/reorder → 401 without auth`, async () => {
+    const res = await fetch(`${BASE_URL}/api/machines/reorder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ machineIds: [MACHINE_ID] }),
+    });
+    expect(res.status).toBe(401);
+  });
+
   it(`DELETE /api/machines/${MACHINE_ID} → 401 without auth (must not delete machine)`, async () => {
     const res = await fetch(`${BASE_URL}/api/machines/${MACHINE_ID}`, {
       method: 'DELETE',
@@ -61,6 +70,18 @@ describe('Machine API Security - Invalid Token Rejected', () => {
   it('GET /api/machines with forged JWT → 401', async () => {
     const res = await fetch(`${BASE_URL}/api/machines`, {
       headers: { 'Authorization': `Bearer ${fakeToken}` },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('PUT /api/machines/reorder with forged JWT → 401', async () => {
+    const res = await fetch(`${BASE_URL}/api/machines/reorder`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${fakeToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ machineIds: [MACHINE_ID] }),
     });
     expect(res.status).toBe(401);
   });
