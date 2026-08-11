@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col lg:flex-row items-stretch gap-5 min-h-[calc(100vh-140px)]">
+  <div class="flex flex-col lg:flex-row items-start gap-5 min-h-[calc(100vh-140px)]">
     <!-- Machines Sidebar -->
     <MachineSidebar 
       :machines="machines"
@@ -91,7 +91,20 @@ const selectedMachine = computed(() => {
 const checkAuthAndLoad = async () => {
   loading.value = true
   try {
-    const list = await $fetch<any[]>('/api/machines')
+    const [authStatus, list] = await Promise.all([
+      $fetch<any>('/api/auth/status'),
+      $fetch<any[]>('/api/machines')
+    ])
+
+    if (!authStatus.onboarded) {
+      router.push('/setup')
+      return
+    }
+    if (!authStatus.authenticated) {
+      router.push('/login')
+      return
+    }
+
     machines.value = list
 
     // URL parameter sync

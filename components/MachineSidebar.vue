@@ -1,5 +1,5 @@
 <template>
-  <aside class="w-full lg:w-80 h-full self-stretch flex flex-col bg-base-200/50 backdrop-blur-xl border border-base-content/10 p-4 rounded-xl space-y-4">
+  <aside class="w-full lg:w-80 h-fit flex flex-col bg-base-200/50 backdrop-blur-xl border border-base-content/10 p-4 rounded-xl space-y-4">
     <!-- Header & Add Button -->
     <div class="flex items-center justify-between px-1">
       <div class="flex items-center gap-2">
