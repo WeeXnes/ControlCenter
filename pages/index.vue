@@ -91,20 +91,7 @@ const selectedMachine = computed(() => {
 const checkAuthAndLoad = async () => {
   loading.value = true
   try {
-    const [authStatus, list] = await Promise.all([
-      $fetch<any>('/api/auth/status'),
-      $fetch<any[]>('/api/machines')
-    ])
-
-    if (!authStatus.onboarded) {
-      router.push('/setup')
-      return
-    }
-    if (!authStatus.authenticated) {
-      router.push('/login')
-      return
-    }
-
+    const list = await $fetch<any[]>('/api/machines')
     machines.value = list
 
     // URL parameter sync

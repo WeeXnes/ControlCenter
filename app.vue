@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen flex flex-col font-sans selection:bg-primary/30" data-theme="onedev">
-    <!-- Header / Navbar -->
-    <header class="sticky top-0 z-40 transition-all duration-300">
+    <!-- Header / Navbar: Only show when logged in and NOT on auth pages -->
+    <header v-if="showNavigation" class="sticky top-0 z-40 transition-all duration-300">
       <nav class="navbar bg-base-100/90 backdrop-blur-xl border-b border-base-content/10 px-4 md:px-8 h-16">
         <div class="flex-1 flex items-center gap-3">
           <NuxtLink to="/" class="group flex items-center gap-3 hover:opacity-90 transition-opacity">
@@ -49,8 +49,8 @@
       @close="showSettingsModal = false" 
     />
 
-    <!-- Footer -->
-    <footer class="bg-base-200/30 border-t border-base-content/5 py-4 mt-auto">
+    <!-- Footer: Only show when logged in and NOT on auth pages -->
+    <footer v-if="showNavigation" class="bg-base-200/30 border-t border-base-content/5 py-4 mt-auto">
       <div class="max-w-[1600px] mx-auto px-4 md:px-8 flex justify-between items-center text-xs text-base-content/40 font-medium">
         <span>ControlCenter</span>
         <span>weexnes.dev</span>
@@ -60,13 +60,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
 const isLoggedIn = ref(false)
 const showSettingsModal = ref(false)
+
+const isAuthPage = computed(() => ['/login', '/setup'].includes(route.path))
+const showNavigation = computed(() => !isAuthPage.value && isLoggedIn.value)
 
 const checkAuth = async () => {
   try {
