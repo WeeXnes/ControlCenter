@@ -9,7 +9,7 @@
       <!-- Header / Navbar: Only show when logged in and NOT on auth pages -->
       <header v-if="showNavigation" class="sticky top-0 z-40 transition-all duration-300">
         <nav class="navbar bg-base-100/90 backdrop-blur-xl border-b border-base-content/10 px-4 md:px-8 h-16">
-          <div class="flex-1 flex items-center gap-3">
+          <div class="flex-1 flex items-center gap-6">
             <NuxtLink to="/" class="group flex items-center gap-3 hover:opacity-90 transition-opacity">
               <div class="p-2 rounded-lg bg-primary/10 text-primary group-hover:scale-105 transition-transform flex items-center justify-center w-9 h-9">
                 <Icon name="material-symbols:space-dashboard-rounded" size="20" />
@@ -18,6 +18,27 @@
                 Control<span class="text-base-content">Center</span>
               </span>
             </NuxtLink>
+
+            <!-- Navigation Tabs -->
+            <div class="hidden sm:flex items-center gap-1 bg-base-200/60 p-1 rounded-lg border border-base-content/5 text-xs font-semibold">
+              <NuxtLink 
+                to="/" 
+                class="px-3 py-1 rounded-md transition-all flex items-center gap-1.5"
+                :class="route.path === '/' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/70 hover:text-base-content hover:bg-base-content/5'"
+              >
+                <Icon name="material-symbols:dns-outline-rounded" size="15" />
+                Machines
+              </NuxtLink>
+
+              <NuxtLink 
+                to="/topology" 
+                class="px-3 py-1 rounded-md transition-all flex items-center gap-1.5"
+                :class="route.path === '/topology' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/70 hover:text-base-content hover:bg-base-content/5'"
+              >
+                <Icon name="material-symbols:bubble-chart-outline-rounded" size="15" />
+                Infrastructure Graph
+              </NuxtLink>
+            </div>
           </div>
 
           <div class="flex items-center gap-3">

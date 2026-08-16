@@ -77,6 +77,10 @@ class DaemonManager {
     return this.activeConnections.has(machineId);
   }
 
+  public isDaemonConnected(machineId: string): boolean {
+    return this.isOnline(machineId);
+  }
+
   public updateTelemetry(machineId: string, data: any): TelemetryPayload {
     const now = new Date().toISOString();
     const normalized = normalizeTelemetry(data);

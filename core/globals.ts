@@ -1,6 +1,36 @@
 import * as os from 'os';
 import * as path from 'path';
 
+export interface NodeService {
+  id: string;
+  name: string; // e.g. "WebServer1", "PostgreSQL", "GameServer"
+  port: number; // e.g. 1337, 8080, 5432
+  protocol: 'http' | 'https' | 'tcp' | 'udp' | 'ssh' | 'custom';
+  path?: string; // e.g. "/" or "/api/health"
+  status?: 'online' | 'offline' | 'checking' | 'unknown';
+  lastChecked?: string;
+  latencyMs?: number;
+}
+
+export interface InfrastructureDevice {
+  id: string;
+  name: string; // e.g. "Core Router", "Lab Switch", "Cloud Gateway"
+  type: 'router' | 'switch' | 'gateway' | 'firewall' | 'subnet' | 'server' | 'custom';
+  ip?: string; // e.g. "100.64.0.1"
+  cidr?: string; // e.g. "100.64.0.1/16" or "192.168.178.0/24"
+  description?: string;
+  icon?: string;
+  services?: NodeService[];
+  customPosition?: { x: number; y: number };
+}
+
+export interface InfrastructureSettings {
+  devices: InfrastructureDevice[];
+  nodeServices: Record<string, NodeService[]>; // machineId -> NodeService[]
+  customLinks?: Array<{ source: string; target: string; label?: string }>;
+  nodePositions?: Record<string, { x: number; y: number }>;
+}
+
 export interface Machine {
   id: string;
   name: string;
@@ -23,6 +53,7 @@ export interface SettingsJsonFile {
   onboarded: boolean;
   default_ssh_key?: string;
   machines: Machine[];
+  infrastructure?: InfrastructureSettings;
 }
 
 export namespace environment {
@@ -48,6 +79,12 @@ export namespace environment {
     password_hash: '',
     jwt_secret: '',
     onboarded: false,
-    machines: []
+    machines: [],
+    infrastructure: {
+      devices: [],
+      nodeServices: {},
+      customLinks: [],
+      nodePositions: {}
+    }
   };
 }
