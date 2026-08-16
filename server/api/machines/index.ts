@@ -1,6 +1,6 @@
 import { environment, type Machine } from '~/core/globals';
 import { saveJsonFile, loadJsonFile } from '~/util/jsonLoader';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 
 export default defineEventHandler(async (event) => {
   const method = getMethod(event);
@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
       name: m.name,
       ip: m.ip,
       daemonPort: m.daemonPort || 9100,
+      apiKey: m.apiKey || '',
       sshPort: m.sshPort || 22,
       sshUser: m.sshUser || 'root',
       sshAuthType: m.sshAuthType || 'password',
@@ -35,12 +36,14 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    const generatedApiKey = apiKey && String(apiKey).trim() ? String(apiKey).trim() : `cc_${randomBytes(16).toString('hex')}`;
+
     const newMachine: Machine = {
       id: randomUUID(),
       name: String(name).trim(),
       ip: String(ip).trim(),
       daemonPort: Number(daemonPort) || 9100,
-      apiKey: apiKey ? String(apiKey).trim() : '',
+      apiKey: generatedApiKey,
       sshPort: Number(sshPort) || 22,
       sshUser: sshUser ? String(sshUser).trim() : 'root',
       sshAuthType: sshAuthType === 'key' ? 'key' : 'password',
@@ -59,6 +62,7 @@ export default defineEventHandler(async (event) => {
         name: newMachine.name,
         ip: newMachine.ip,
         daemonPort: newMachine.daemonPort,
+        apiKey: newMachine.apiKey,
         sshPort: newMachine.sshPort,
         sshUser: newMachine.sshUser,
         sshAuthType: newMachine.sshAuthType,
@@ -69,3 +73,4 @@ export default defineEventHandler(async (event) => {
 
   throw createError({ statusCode: 405, statusMessage: 'Method Not Allowed' });
 });
+

@@ -21,11 +21,12 @@ export default defineEventHandler(async (event) => {
       name: m.name,
       ip: m.ip,
       daemonPort: m.daemonPort,
+      apiKey: m.apiKey || '',
       sshPort: m.sshPort,
       sshUser: m.sshUser,
       sshAuthType: m.sshAuthType,
       sshKeyFile: m.sshKeyFile || '',
-      sshPassword: m.sshPassword || '',
+      hasPassword: !!m.sshPassword,
       addedAt: m.addedAt,
       lastSeen: m.lastSeen
     };
@@ -44,7 +45,7 @@ export default defineEventHandler(async (event) => {
       sshPort: body.sshPort !== undefined ? Number(body.sshPort) : existing.sshPort,
       sshUser: body.sshUser !== undefined ? String(body.sshUser).trim() : existing.sshUser,
       sshAuthType: body.sshAuthType === 'key' ? 'key' : 'password',
-      sshPassword: body.sshPassword !== undefined ? String(body.sshPassword) : existing.sshPassword,
+      sshPassword: body.sshPassword !== undefined && body.sshPassword !== '' ? String(body.sshPassword) : existing.sshPassword,
       sshKeyFile: body.sshKeyFile !== undefined ? String(body.sshKeyFile) : (body.sshPrivateKey !== undefined ? String(body.sshPrivateKey) : existing.sshKeyFile)
     };
 
@@ -60,3 +61,4 @@ export default defineEventHandler(async (event) => {
 
   throw createError({ statusCode: 405, statusMessage: 'Method Not Allowed' });
 });
+

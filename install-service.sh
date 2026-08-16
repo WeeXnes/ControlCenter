@@ -15,7 +15,7 @@ fi
 RUN_GROUP="$(id -gn "$RUN_USER")"
 
 PORT="${PORT:-3000}"
-HOST="${HOST:-0.0.0.0}"
+HOST="${HOST:-127.0.0.1}"
 
 if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
     echo "Uninstalling $SERVICE_NAME service..."

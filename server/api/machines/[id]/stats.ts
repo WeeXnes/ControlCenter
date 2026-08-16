@@ -1,5 +1,6 @@
 import { environment } from '~/core/globals';
-import { saveJsonFile, loadJsonFile } from '~/util/jsonLoader';
+import { loadJsonFile } from '~/util/jsonLoader';
+import { daemonManager } from '~/server/util/daemonManager';
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id');
@@ -13,50 +14,29 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Machine not found' });
   }
 
-  const daemonUrl = `http://${machine.ip}:${machine.daemonPort || 9100}/api/v1/telemetry`;
+  const telemetry = daemonManager.getTelemetry(machine.id);
+  const isOnline = daemonManager.isOnline(machine.id);
 
-  try {
-    const headers: Record<string, string> = {};
-    if (machine.apiKey) {
-      headers['X-API-Key'] = machine.apiKey;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(daemonUrl, {
-      method: 'GET',
-      headers,
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data = await res.json();
-      machine.lastSeen = new Date().toISOString();
-      saveJsonFile();
-
-      return {
-        online: true,
-        machineId: machine.id,
-        hostname: data.hostname || machine.name,
-        os: data.os || 'Unknown OS',
-        cpuModel: data.cpuModel || 'Generic CPU',
-        cpuCores: data.cpuCores || 1,
-        cpuUsagePercent: data.cpuUsagePercent ?? 0,
-        ramTotalBytes: data.ramTotalBytes ?? 0,
-        ramUsedBytes: data.ramUsedBytes ?? 0,
-        ramUsagePercent: data.ramUsagePercent ?? 0,
-        diskTotalBytes: data.diskTotalBytes ?? 0,
-        diskUsedBytes: data.diskUsedBytes ?? 0,
-        diskUsagePercent: data.diskUsagePercent ?? 0,
-        uptimeSeconds: data.uptimeSeconds ?? 0,
-        ipAddresses: data.ipAddresses || [machine.ip],
-        timestamp: new Date().toISOString()
-      };
-    }
-  } catch (err: any) {
-    // Daemon call failed or timed out
+  if (telemetry && (isOnline || telemetry.hostname)) {
+    return {
+      online: isOnline,
+      machineId: machine.id,
+      hostname: telemetry.hostname || machine.name,
+      os: telemetry.os || 'Unknown OS',
+      cpuModel: telemetry.cpuModel || 'Generic CPU',
+      cpuCores: telemetry.cpuCores || 1,
+      cpuUsagePercent: telemetry.cpuUsagePercent ?? 0,
+      ramTotalBytes: telemetry.ramTotalBytes ?? 0,
+      ramUsedBytes: telemetry.ramUsedBytes ?? 0,
+      ramUsagePercent: telemetry.ramUsagePercent ?? 0,
+      diskTotalBytes: telemetry.diskTotalBytes ?? 0,
+      diskUsedBytes: telemetry.diskUsedBytes ?? 0,
+      diskUsagePercent: telemetry.diskUsagePercent ?? 0,
+      uptimeSeconds: telemetry.uptimeSeconds ?? 0,
+      ipAddresses: telemetry.ipAddresses || [machine.ip],
+      timestamp: telemetry.timestamp || new Date().toISOString(),
+      lastSeen: machine.lastSeen || telemetry.lastSeen
+    };
   }
 
   return {
@@ -67,6 +47,7 @@ export default defineEventHandler(async (event) => {
     cpuUsagePercent: 0,
     ramUsagePercent: 0,
     diskUsagePercent: 0,
-    message: 'Machine daemon unreachable'
+    message: 'Machine daemon offline (awaiting reverse connection)'
   };
 });
+

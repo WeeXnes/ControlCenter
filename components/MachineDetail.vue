@@ -13,7 +13,7 @@
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold border"
                   :class="telemetry?.online ? 'bg-success/10 text-success border-success/30' : 'bg-error/10 text-error border-error/30'">
               <span class="w-2 h-2 rounded-full" :class="telemetry?.online ? 'bg-success animate-ping' : 'bg-error'"></span>
-              {{ telemetry?.online ? 'Daemon Online' : 'Daemon Offline' }}
+              {{ telemetry?.online ? 'Secure WSS Connected' : 'Daemon Offline' }}
             </span>
             <span class="font-mono text-xs px-2 py-0.5 rounded bg-base-300/70 text-base-content/70">
               IP: {{ machine.ip }}
@@ -22,7 +22,11 @@
 
           <div class="flex items-center gap-4 text-xs font-medium text-base-content/60 flex-wrap">
             <span class="flex items-center gap-1.5">
-              <Icon name="material-symbols:computer-outline-rounded" size="16" class="text-primary" />
+              <Icon name="material-symbols:shield-lock-outline-rounded" size="16" class="text-primary" />
+              Zero Open Inbound Ports
+            </span>
+            <span class="flex items-center gap-1.5">
+              <Icon name="material-symbols:computer-outline-rounded" size="16" class="text-secondary" />
               {{ telemetry?.os || 'Linux OS' }}
             </span>
             <span class="flex items-center gap-1.5">
@@ -162,8 +166,8 @@
           </div>
 
           <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
-            <span class="text-base-content/60 font-medium">Daemon Port</span>
-            <p class="font-bold text-sm text-base-content font-mono">{{ machine.daemonPort || 9100 }}</p>
+            <span class="text-base-content/60 font-medium">Security Tunnel</span>
+            <p class="font-bold text-sm text-primary font-mono truncate">Outbound TLS WSS</p>
           </div>
 
           <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">

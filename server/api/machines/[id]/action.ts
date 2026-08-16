@@ -1,5 +1,6 @@
 import { environment } from '~/core/globals';
 import { loadJsonFile } from '~/util/jsonLoader';
+import { daemonManager } from '~/server/util/daemonManager';
 
 export default defineEventHandler(async (event) => {
   assertMethod(event, 'POST');
@@ -20,30 +21,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Machine not found' });
   }
 
-  const daemonEndpoint = `http://${machine.ip}:${machine.daemonPort || 9100}/api/v1/control/${action}`;
-
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (machine.apiKey) {
-      headers['X-API-Key'] = machine.apiKey;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const res = await fetch(daemonEndpoint, {
-      method: 'POST',
-      headers,
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      return { success: true, message: `Command '${action}' sent to machine ${machine.name} successfully.` };
-    }
+    const result = await daemonManager.dispatchAction(machine.id, action as 'restart' | 'shutdown');
+    return {
+      success: true,
+      message: result.message || `Command '${action}' sent to machine ${machine.name} via secure tunnel.`
+    };
   } catch (err: any) {
-    // If daemon action endpoint fails, fallback to SSH command if available
+    throw createError({
+      statusCode: 502,
+      statusMessage: `Failed to dispatch '${action}' command: ${err.message}`
+    });
   }
-
-  return { success: true, message: `Command '${action}' initiated for ${machine.name}.` };
 });
+
