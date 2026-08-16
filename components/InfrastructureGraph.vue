@@ -663,17 +663,19 @@ const togglePhysics = () => {
   isPhysicsRunning.value = !isPhysicsRunning.value
 }
 
-// Window resize observer
+// Canvas Resize Handler with ResizeObserver
+let resizeObserver: ResizeObserver | null = null
+
 const handleResize = () => {
   const canvas = canvasRef.value
   if (!canvas || !canvas.parentElement) return
-  const w = canvas.parentElement.clientWidth || canvas.parentElement.offsetWidth || window.innerWidth
-  const h = canvas.parentElement.clientHeight || canvas.parentElement.offsetHeight || 600
-  if (w > 0 && h > 0) {
+  const w = canvas.parentElement.clientWidth || canvas.clientWidth || window.innerWidth
+  const h = canvas.parentElement.clientHeight || canvas.clientHeight || 600
+  if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
     canvas.width = w
     canvas.height = h
+    initBgStars(canvas.width, canvas.height)
   }
-  initBgStars(canvas.width, canvas.height)
 }
 
 watch([() => props.machines, () => props.devices, () => props.nodeServices, () => props.links], () => {
@@ -683,12 +685,25 @@ watch([() => props.machines, () => props.devices, () => props.nodeServices, () =
 onMounted(() => {
   handleResize()
   window.addEventListener('resize', handleResize)
+
+  const canvas = canvasRef.value
+  if (canvas?.parentElement && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    resizeObserver.observe(canvas.parentElement)
+  }
+
   buildGraphData()
   animFrameId = requestAnimationFrame(render)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
   if (animFrameId) {
     cancelAnimationFrame(animFrameId)
   }

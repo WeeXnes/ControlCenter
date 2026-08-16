@@ -1,7 +1,7 @@
 <template>
-  <div class="h-[calc(100vh-140px)] flex rounded-xl overflow-hidden border border-base-content/10 bg-base-300/30 relative">
-    <!-- Main Interactive Star Graph Canvas -->
-    <div class="flex-1 relative flex flex-col min-w-0 h-full">
+  <div class="h-[calc(100vh-140px)] w-full rounded-xl overflow-hidden border border-base-content/10 bg-base-300/30 relative">
+    <!-- Main Interactive Star Graph Canvas (Full Size) -->
+    <div class="w-full h-full relative">
       <InfrastructureGraph
         :machines="machines"
         :devices="devices"
@@ -13,15 +13,18 @@
       />
     </div>
 
-    <!-- Right-Hand Inspector Drawer -->
-    <InfrastructureDrawer 
-      v-if="selectedNode"
-      :node="selectedNode"
-      :servicesMap="nodeServices"
-      @close="selectedNode = null"
-      @edit-device="openEditDeviceModal"
-      @refresh-graph="fetchTopologyData"
-    />
+    <!-- Right-Hand Floating Inspector Drawer (Overlay) -->
+    <Transition name="drawer">
+      <InfrastructureDrawer 
+        v-if="selectedNode"
+        :node="selectedNode"
+        :servicesMap="nodeServices"
+        class="absolute right-0 top-0 bottom-0 z-30 shadow-2xl"
+        @close="selectedNode = null"
+        @edit-device="openEditDeviceModal"
+        @refresh-graph="fetchTopologyData"
+      />
+    </Transition>
 
     <!-- Device Creation / Edit Modal -->
     <InfrastructureDeviceModal 
@@ -97,3 +100,15 @@ onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer)
 })
 </script>
+
+<style scoped>
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out;
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+</style>
