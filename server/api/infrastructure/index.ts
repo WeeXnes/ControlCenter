@@ -1,7 +1,7 @@
 import { environment, type InfrastructureDevice } from '~/core/globals';
 import { loadJsonFile, saveJsonFile } from '~/util/jsonLoader';
-import { isIpInCidr } from '~/server/util/cidrMatcher';
 import { daemonManager } from '~/server/util/daemonManager';
+import { isIpInCidr } from '~/server/util/cidrMatcher';
 import { randomUUID } from 'crypto';
 
 export default defineEventHandler(async (event) => {
@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
     loadJsonFile();
   }
 
+  // Ensure infrastructure configuration structure exists
   if (!environment.settings.infrastructure) {
     environment.settings.infrastructure = {
       devices: [],
@@ -29,10 +30,19 @@ export default defineEventHandler(async (event) => {
       const telemetry = daemonManager.getTelemetry(m.id);
       const services = infra.nodeServices[m.id] || [];
 
+      // Gather all known IP addresses from machine config and live telemetry
+      const ipList = Array.from(
+        new Set([
+          ...(m.ip ? m.ip.split(',').map((s) => s.trim()) : []),
+          ...(telemetry?.ipAddresses || [])
+        ])
+      ).filter(Boolean);
+
       return {
         id: m.id,
         name: m.name,
-        ip: m.ip,
+        ip: m.ip || (ipList.length > 0 ? ipList[0] : ''),
+        ipAddresses: ipList,
         type: 'machine' as const,
         status: m.status || 'approved',
         online: isOnline,
@@ -40,7 +50,8 @@ export default defineEventHandler(async (event) => {
           os: telemetry?.os || '',
           cpuUsagePercent: telemetry?.cpuUsagePercent ?? 0,
           ramUsagePercent: telemetry?.ramUsagePercent ?? 0,
-          uptimeSeconds: telemetry?.uptimeSeconds ?? 0
+          uptimeSeconds: telemetry?.uptimeSeconds ?? 0,
+          ipAddresses: ipList
         },
         services
       };
@@ -51,29 +62,58 @@ export default defineEventHandler(async (event) => {
       services: infra.nodeServices[d.id] || d.services || []
     }));
 
-    // Compute automatic links:
-    // 1. Connect machines to matching Router/Subnet CIDR devices
-    // 2. Connect services to their parent node
-    // 3. Include custom defined links
+    // Compute automatic multi-homed links:
+    // 1. Connect machines to ALL matching Router/Subnet CIDR devices based on all their IPs
+    // 2. Connect sub-devices (e.g. switches/routers) to matching upstream subnets
+    // 3. Connect services to their parent node
+    // 4. Include custom defined links
     const links: Array<{ source: string; target: string; type: 'cidr' | 'service' | 'custom'; label?: string }> = [];
 
-    // CIDR Links
+    // Multi-IP CIDR matching for machines
     for (const machine of machines) {
-      let matchedDevice = false;
+      const machineIps = machine.ipAddresses && machine.ipAddresses.length > 0
+        ? machine.ipAddresses
+        : (machine.ip ? [machine.ip] : []);
+
       for (const dev of devices) {
-        if (dev.cidr && machine.ip && isIpInCidr(machine.ip, dev.cidr)) {
+        if (!dev.cidr) continue;
+
+        // Check if ANY of the machine's IPs matches this device's subnet CIDR
+        const matchingIp = machineIps.find((ip) => isIpInCidr(ip, dev.cidr));
+        if (matchingIp) {
           links.push({
             source: dev.id,
             target: machine.id,
             type: 'cidr',
             label: dev.cidr
           });
-          matchedDevice = true;
         }
       }
     }
 
-    // Service Links
+    // Inter-device CIDR matching (e.g. switch or nested router connected to parent subnet)
+    for (const dev of devices) {
+      if (!dev.ip) continue;
+      for (const parentDev of devices) {
+        if (parentDev.id === dev.id || !parentDev.cidr) continue;
+        if (isIpInCidr(dev.ip, parentDev.cidr)) {
+          // Avoid duplicate reciprocal links
+          const alreadyLinked = links.some(
+            (l) => (l.source === dev.id && l.target === parentDev.id) || (l.source === parentDev.id && l.target === dev.id)
+          );
+          if (!alreadyLinked) {
+            links.push({
+              source: parentDev.id,
+              target: dev.id,
+              type: 'cidr',
+              label: parentDev.cidr
+            });
+          }
+        }
+      }
+    }
+
+    // Service Links (attached to machines or devices)
     for (const [nodeId, sList] of Object.entries(infra.nodeServices)) {
       for (const s of sList) {
         links.push({
@@ -87,12 +127,14 @@ export default defineEventHandler(async (event) => {
     // Custom links
     if (Array.isArray(infra.customLinks)) {
       for (const cl of infra.customLinks) {
-        links.push({
-          source: cl.source,
-          target: cl.target,
-          type: 'custom',
-          label: cl.label
-        });
+        if (cl.source && cl.target) {
+          links.push({
+            source: cl.source,
+            target: cl.target,
+            type: 'custom',
+            label: cl.label
+          });
+        }
       }
     }
 
@@ -101,24 +143,21 @@ export default defineEventHandler(async (event) => {
       devices,
       nodeServices: infra.nodeServices,
       links,
-      nodePositions: infra.nodePositions || {}
+      positions: infra.nodePositions || {}
     };
   }
 
-  // POST: Add or update an infrastructure device
+  // POST: Create a new custom infrastructure device
   if (method === 'POST') {
     const body = await readBody(event);
-    const { id, name, type, ip, cidr, description, icon } = body;
+    const { name, type, ip, cidr, description, icon } = body;
 
     if (!name || !type) {
-      throw createError({ statusCode: 400, statusMessage: 'Device name and type are required.' });
+      throw createError({ statusCode: 400, statusMessage: 'Name and type are required.' });
     }
 
-    const deviceId = id || randomUUID();
-    const existingIndex = infra.devices.findIndex((d) => d.id === deviceId);
-
-    const deviceObj: InfrastructureDevice = {
-      id: deviceId,
+    const newDevice: InfrastructureDevice = {
+      id: randomUUID(),
       name: String(name).trim(),
       type: type || 'router',
       ip: ip ? String(ip).trim() : undefined,
@@ -127,47 +166,60 @@ export default defineEventHandler(async (event) => {
       icon: icon || undefined
     };
 
-    if (existingIndex !== -1) {
-      infra.devices[existingIndex] = {
-        ...infra.devices[existingIndex],
-        ...deviceObj
-      };
-    } else {
-      infra.devices.push(deviceObj);
+    if (!infra.devices) {
+      infra.devices = [];
     }
 
+    infra.devices.push(newDevice);
     saveJsonFile();
-    return { success: true, device: deviceObj };
+
+    return { success: true, device: newDevice };
   }
 
-  // PUT: Update node positions or custom links
+  // PUT: Update an existing custom device
   if (method === 'PUT') {
     const body = await readBody(event);
-    if (body.nodePositions) {
-      infra.nodePositions = { ...infra.nodePositions, ...body.nodePositions };
-    }
-    if (body.customLinks) {
-      infra.customLinks = body.customLinks;
-    }
-    saveJsonFile();
-    return { success: true };
-  }
-
-  // DELETE: Remove an infrastructure device
-  if (method === 'DELETE') {
-    const query = getQuery(event);
-    const id = (query.id || (await readBody(event).catch(() => ({})))?.id) as string;
+    const { id, name, type, ip, cidr, description, icon } = body;
 
     if (!id) {
-      throw createError({ statusCode: 400, statusMessage: 'Missing device id.' });
+      throw createError({ statusCode: 400, statusMessage: 'Device ID is required for update.' });
     }
 
-    infra.devices = infra.devices.filter((d) => d.id !== id);
-    delete infra.nodeServices[id];
-    if (infra.nodePositions) {
-      delete infra.nodePositions[id];
+    const device = infra.devices.find((d) => d.id === id);
+    if (!device) {
+      throw createError({ statusCode: 404, statusMessage: 'Device not found.' });
     }
-    if (infra.customLinks) {
+
+    if (name) device.name = String(name).trim();
+    if (type) device.type = type;
+    if (ip !== undefined) device.ip = ip ? String(ip).trim() : undefined;
+    if (cidr !== undefined) device.cidr = cidr ? String(cidr).trim() : undefined;
+    if (description !== undefined) device.description = description ? String(description).trim() : undefined;
+    if (icon !== undefined) device.icon = icon || undefined;
+
+    saveJsonFile();
+    return { success: true, device };
+  }
+
+  // DELETE: Remove a custom infrastructure device
+  if (method === 'DELETE') {
+    const query = getQuery(event);
+    const body = await readBody(event).catch(() => ({}));
+    const id = (query.id || body.id) as string;
+
+    if (!id) {
+      throw createError({ statusCode: 400, statusMessage: 'Device ID is required.' });
+    }
+
+    infra.devices = (infra.devices || []).filter((d) => d.id !== id);
+
+    // Clean up any attached services
+    if (infra.nodeServices[id]) {
+      delete infra.nodeServices[id];
+    }
+
+    // Clean up any custom links referencing this device
+    if (Array.isArray(infra.customLinks)) {
       infra.customLinks = infra.customLinks.filter((l) => l.source !== id && l.target !== id);
     }
 

@@ -61,6 +61,23 @@
           </div>
         </div>
 
+        <!-- Network Interfaces & IP Addresses -->
+        <div v-if="node.ipAddresses && node.ipAddresses.length > 1" class="p-2.5 rounded-lg bg-base-100/70 border border-base-content/5 space-y-1.5">
+          <div class="flex items-center justify-between text-[10px] text-base-content/50 uppercase font-bold">
+            <span>Network Interfaces</span>
+            <span class="font-mono text-primary font-bold">{{ node.ipAddresses.length }} IPs</span>
+          </div>
+          <div class="flex flex-wrap gap-1">
+            <span 
+              v-for="ip in node.ipAddresses" 
+              :key="ip"
+              class="px-2 py-0.5 rounded bg-base-200/80 border border-base-content/10 font-mono text-[10px] text-base-content/80"
+            >
+              {{ ip }}
+            </span>
+          </div>
+        </div>
+
         <button 
           @click="openSshTerminal"
           class="btn btn-primary btn-sm w-full rounded-lg shadow font-semibold gap-1.5 text-xs"

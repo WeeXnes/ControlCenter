@@ -82,4 +82,19 @@ describe('CIDR Subnet Matcher Logic Unit Tests', () => {
     expect(isIpInCidr('10.0.0.5', '192.168.1.0/24, 10.0.0.0/8')).toBe(true);
     expect(isIpInCidr('172.16.0.1', '192.168.1.0/24, 10.0.0.0/8')).toBe(false);
   });
+
+  it('correctly matches multi-homed node IPs to multiple routers', () => {
+    const nodeIps = ['192.168.178.67', '100.64.0.12', '10.0.0.5'];
+    const routerLAN = '192.168.178.0/24';
+    const routerVPN = '100.64.0.0/16';
+    const routerDocker = '172.17.0.0/16';
+
+    const matchesLAN = nodeIps.some(ip => isIpInCidr(ip, routerLAN));
+    const matchesVPN = nodeIps.some(ip => isIpInCidr(ip, routerVPN));
+    const matchesDocker = nodeIps.some(ip => isIpInCidr(ip, routerDocker));
+
+    expect(matchesLAN).toBe(true);
+    expect(matchesVPN).toBe(true);
+    expect(matchesDocker).toBe(false);
+  });
 });
