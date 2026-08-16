@@ -125,7 +125,7 @@
               v-model="newService.name"
               type="text" 
               required 
-              placeholder="Service Name (e.g. WebServer1, Postgres)" 
+              placeholder="Service Name (e.g. WebServer1, Plex, Vaultwarden)" 
               class="input input-xs rounded-md bg-base-200/80 border-base-content/10 focus:border-primary text-xs"
             />
           </div>
@@ -156,6 +156,15 @@
                 <option value="custom">CUSTOM</option>
               </select>
             </div>
+          </div>
+
+          <div class="form-control">
+            <input 
+              v-model="newService.publicUrl"
+              type="text" 
+              placeholder="Public / Domain URL (e.g. https://plex.example.com)" 
+              class="input input-xs rounded-md bg-base-200/80 border-base-content/10 focus:border-primary font-mono text-xs"
+            />
           </div>
 
           <div class="flex justify-end gap-1.5 pt-1">
@@ -208,6 +217,14 @@
               </div>
             </div>
 
+            <!-- Public URL Badge if set -->
+            <div v-if="srv.publicUrl" class="text-[10px] flex items-center gap-1 text-primary hover:underline truncate">
+              <Icon name="material-symbols:public-rounded" size="12" class="flex-shrink-0" />
+              <a :href="srv.publicUrl" target="_blank" rel="noopener noreferrer" class="truncate font-mono">
+                {{ srv.publicUrl }}
+              </a>
+            </div>
+
             <!-- Reachability Stats & Action Bar -->
             <div class="flex items-center justify-between text-[10px] pt-1 border-t border-base-content/5 text-base-content/60">
               <span v-if="srv.latencyMs !== undefined && srv.latencyMs >= 0" class="font-mono text-success">
@@ -222,7 +239,7 @@
 
               <div class="flex items-center gap-1.5">
                 <button 
-                  v-if="['http', 'https'].includes(srv.protocol) && (node.ip || srv.host)"
+                  v-if="srv.publicUrl || (['http', 'https'].includes(srv.protocol) && (node.ip || srv.host))"
                   @click="openInBrowser(srv)"
                   class="btn btn-ghost btn-xs text-primary gap-0.5 p-0.5 h-auto min-h-0 text-[10px]"
                 >
@@ -287,7 +304,8 @@ const newService = reactive({
   name: '',
   port: 80,
   protocol: 'http',
-  path: '/'
+  path: '/',
+  publicUrl: ''
 })
 
 const services = computed(() => {
@@ -339,6 +357,14 @@ const openSshTerminal = () => {
 }
 
 const openInBrowser = (srv: any) => {
+  if (srv.publicUrl) {
+    let url = srv.publicUrl.trim()
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`
+    }
+    window.open(url, '_blank')
+    return
+  }
   const host = props.node.ip || 'localhost'
   const url = `${srv.protocol}://${host}:${srv.port}${srv.path || ''}`
   window.open(url, '_blank')
@@ -356,6 +382,7 @@ const handleAddService = async () => {
     })
     newService.name = ''
     newService.port = 80
+    newService.publicUrl = ''
     showAddServiceForm.value = false
     emit('refresh-graph')
   } catch (err: any) {

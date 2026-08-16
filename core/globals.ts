@@ -7,6 +7,7 @@ export interface NodeService {
   port: number; // e.g. 1337, 8080, 5432
   protocol: 'http' | 'https' | 'tcp' | 'udp' | 'ssh' | 'custom';
   path?: string; // e.g. "/" or "/api/health"
+  publicUrl?: string; // e.g. "https://plex.example.com" or "https://dashboard.mycloud.org"
   status?: 'online' | 'offline' | 'checking' | 'unknown';
   lastChecked?: string;
   latencyMs?: number;

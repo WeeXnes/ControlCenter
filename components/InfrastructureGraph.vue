@@ -590,7 +590,13 @@ const render = () => {
         }
       }
 
-      const portText = n.serviceData?.port ? `@:${n.serviceData.port}` : ''
+      let portText = n.serviceData?.port ? `@:${n.serviceData.port}` : ''
+      if (n.serviceData?.publicUrl) {
+        try {
+          const domain = n.serviceData.publicUrl.replace(/^https?:\/\//, '').split('/')[0]
+          if (domain) portText = domain
+        } catch {}
+      }
       const portColor = n.serviceData?.status === 'online' ? '#4ade80' : (n.serviceData?.status === 'offline' ? '#f87171' : '#c084fc')
       
       drawTextPill(
