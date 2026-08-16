@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import WebSocket from 'ws';
 
-const BASE_URL = 'http://localhost:3000';
-const WS_BASE_URL = 'ws://localhost:3000';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://localhost:3000';
+const WS_BASE_URL = process.env.TEST_WS_URL || 'wss://localhost:3000';
 const MACHINE_ID = '495f5683-1b75-467f-b2d9-bab73f2e60a6';
 
 /**
@@ -14,7 +15,7 @@ function connectWebSocket(url: string, options?: WebSocket.ClientOptions): Promi
     const messages: string[] = [];
     let closeCode: number | undefined;
 
-    const ws = new WebSocket(url, options);
+    const ws = new WebSocket(url, { rejectUnauthorized: false, ...options });
     const timeout = setTimeout(() => {
       try { ws.close(); } catch {}
       resolve({ messages, closeCode });

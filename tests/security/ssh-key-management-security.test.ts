@@ -3,7 +3,8 @@ import jwt from 'jsonwebtoken';
 import { environment } from '~/core/globals';
 import { loadJsonFile } from '~/util/jsonLoader';
 
-const BASE_URL = 'http://localhost:3000';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://localhost:3000';
 
 function getAuthCookie(): string {
   loadJsonFile();

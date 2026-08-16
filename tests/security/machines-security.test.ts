@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-const BASE_URL = 'http://localhost:3000';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://localhost:3000';
 const MACHINE_ID = '495f5683-1b75-467f-b2d9-bab73f2e60a6';
 
 describe('Machine API Security - Unauthenticated Access Blocked', () => {

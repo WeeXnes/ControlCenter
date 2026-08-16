@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { isIpInCidr, ipv4ToNumber } from '../../server/util/cidrMatcher';
 
-const BASE_URL = 'http://localhost:3000';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://localhost:3000';
 
 describe('Infrastructure API Security - Unauthenticated Access Blocked', () => {
 

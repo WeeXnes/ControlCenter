@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 
-const BASE_URL = 'http://localhost:3000';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://localhost:3000';
 
 // All protected API endpoints in the application
 const PROTECTED_ENDPOINTS = [
