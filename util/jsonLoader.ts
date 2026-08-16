@@ -1,4 +1,4 @@
-import { environment, type SettingsJsonFile, type Machine } from "../core/globals";
+import { environment, type SettingsJsonFile } from "../core/globals";
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
@@ -13,7 +13,14 @@ export function loadJsonFile() {
       password_hash: parsed.password_hash || '',
       jwt_secret: parsed.jwt_secret || randomBytes(32).toString('hex'),
       onboarded: parsed.onboarded ?? false,
-      machines: Array.isArray(parsed.machines) ? parsed.machines : []
+      default_ssh_key: parsed.default_ssh_key || '',
+      machines: Array.isArray(parsed.machines) ? parsed.machines : [],
+      infrastructure: {
+        devices: Array.isArray(parsed.infrastructure?.devices) ? parsed.infrastructure.devices : [],
+        nodeServices: parsed.infrastructure?.nodeServices && typeof parsed.infrastructure.nodeServices === 'object' ? parsed.infrastructure.nodeServices : {},
+        customLinks: Array.isArray(parsed.infrastructure?.customLinks) ? parsed.infrastructure.customLinks : [],
+        nodePositions: parsed.infrastructure?.nodePositions && typeof parsed.infrastructure.nodePositions === 'object' ? parsed.infrastructure.nodePositions : {}
+      }
     };
 
     if (!parsed.jwt_secret) {
@@ -42,7 +49,14 @@ function createEmptySettingsIfNotExists() {
         password_hash: '',
         jwt_secret: randomBytes(32).toString('hex'),
         onboarded: false,
-        machines: []
+        default_ssh_key: '',
+        machines: [],
+        infrastructure: {
+          devices: [],
+          nodeServices: {},
+          customLinks: [],
+          nodePositions: {}
+        }
       };
       fs.writeFileSync(environment.files.settings, JSON.stringify(emptySettings, null, 2), 'utf-8');
     }
