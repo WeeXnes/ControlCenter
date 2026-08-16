@@ -1,5 +1,6 @@
 import { environment, type NodeService } from '~/core/globals';
 import { loadJsonFile, saveJsonFile } from '~/util/jsonLoader';
+import { executeProbe } from '~/server/util/probeHelper';
 import { randomUUID } from 'crypto';
 
 export default defineEventHandler(async (event) => {
@@ -36,13 +37,32 @@ export default defineEventHandler(async (event) => {
     const serviceId = id || randomUUID();
     const existingIndex = infra.nodeServices[nodeId].findIndex((s) => s.id === serviceId);
 
+    // Resolve node IP address
+    const machine = environment.settings.machines?.find((m) => m.id === nodeId);
+    const device = infra.devices?.find((d) => d.id === nodeId);
+    const targetHost = machine?.ip || device?.ip || '127.0.0.1';
+
+    // Auto-probe reachability immediately on add
+    let initialStatus: 'online' | 'offline' | 'unknown' = 'unknown';
+    let initialLatency: number | undefined = undefined;
+
+    try {
+      const probeRes = await executeProbe(targetHost, Number(port), 2000);
+      initialStatus = probeRes.reachable ? 'online' : 'offline';
+      initialLatency = probeRes.latencyMs;
+    } catch {
+      initialStatus = 'offline';
+    }
+
     const serviceObj: NodeService = {
       id: serviceId,
       name: String(name).trim(),
       port: Number(port),
       protocol: protocol || 'http',
       path: path ? String(path).trim() : undefined,
-      status: 'unknown'
+      status: initialStatus,
+      latencyMs: initialLatency,
+      lastChecked: new Date().toISOString()
     };
 
     if (existingIndex !== -1) {

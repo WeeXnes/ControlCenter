@@ -1,58 +1,40 @@
-import * as net from 'net';
-import * as https from 'https';
+import { environment } from '~/core/globals';
+import { loadJsonFile, saveJsonFile } from '~/util/jsonLoader';
+import { executeProbe } from '~/server/util/probeHelper';
 
 export default defineEventHandler(async (event) => {
   assertMethod(event, 'POST');
 
   const body = await readBody(event);
-  const { host, port, protocol } = body;
+  const { host, port, protocol, nodeId, serviceId } = body;
 
   if (!host || !port) {
     throw createError({ statusCode: 400, statusMessage: 'host and port are required.' });
   }
 
-  const targetHost = String(host).trim().replace(/^::ffff:/, '');
   const targetPort = Number(port);
-
   if (targetPort < 1 || targetPort > 65535) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid port number.' });
   }
 
-  const startTime = Date.now();
+  const result = await executeProbe(String(host), targetPort);
 
-  // TCP Socket Probe
-  return new Promise((resolve) => {
-    let resolved = false;
-    const socket = new net.Socket();
+  // Persist probe results in settings storage if serviceId/nodeId are provided
+  if (nodeId && serviceId) {
+    if (!environment.settings || !environment.settings.jwt_secret) {
+      loadJsonFile();
+    }
 
-    const finish = (reachable: boolean, error?: string) => {
-      if (resolved) return;
-      resolved = true;
-      socket.destroy();
-      const latencyMs = Date.now() - startTime;
-      resolve({
-        reachable,
-        latencyMs: reachable ? latencyMs : -1,
-        host: targetHost,
-        port: targetPort,
-        error: reachable ? undefined : (error || 'Connection timed out')
-      });
-    };
+    if (environment.settings.infrastructure?.nodeServices?.[nodeId]) {
+      const srv = environment.settings.infrastructure.nodeServices[nodeId].find((s) => s.id === serviceId);
+      if (srv) {
+        srv.status = result.reachable ? 'online' : 'offline';
+        srv.latencyMs = result.latencyMs;
+        srv.lastChecked = new Date().toISOString();
+        saveJsonFile();
+      }
+    }
+  }
 
-    socket.setTimeout(2500);
-
-    socket.on('connect', () => {
-      finish(true);
-    });
-
-    socket.on('timeout', () => {
-      finish(false, 'Socket timeout (2500ms)');
-    });
-
-    socket.on('error', (err: any) => {
-      finish(false, err.message || 'Connection refused');
-    });
-
-    socket.connect(targetPort, targetHost);
-  });
+  return result;
 });

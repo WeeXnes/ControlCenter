@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full h-full min-h-[500px] overflow-hidden select-none bg-[#090d16] rounded-xl border border-base-content/10 shadow-2xl">
+  <div class="relative w-full h-full min-h-[500px] overflow-hidden select-none bg-[#080c14] rounded-xl border border-base-content/10 shadow-2xl">
     <!-- Starfield & Cosmic Grid Canvas Background -->
     <canvas 
       ref="canvasRef" 
@@ -127,6 +127,7 @@ interface GraphNode {
   ip?: string
   cidr?: string
   parentId?: string
+  parentNode?: GraphNode
   serviceData?: any
   online?: boolean
   telemetry?: any
@@ -169,7 +170,7 @@ const bgStars: Array<{ x: number; y: number; r: number; alpha: number; pulseSpee
 
 const initBgStars = (width: number, height: number) => {
   bgStars.length = 0
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 110; i++) {
     bgStars.push({
       x: (Math.random() - 0.5) * width * 3,
       y: (Math.random() - 0.5) * height * 3,
@@ -180,7 +181,7 @@ const initBgStars = (width: number, height: number) => {
   }
 }
 
-// Build Graph from Props
+// Build Graph from Props with generous radial spacing
 const buildGraphData = () => {
   const existingPosMap = new Map<string, { x: number; y: number }>()
   for (const n of graphNodes.value) {
@@ -194,7 +195,7 @@ const buildGraphData = () => {
   for (const dev of props.devices || []) {
     const existing = existingPosMap.get(dev.id)
     const angle = Math.random() * Math.PI * 2
-    const dist = 100 + Math.random() * 60
+    const dist = 140 + Math.random() * 80
 
     newNodes.push({
       id: dev.id,
@@ -206,7 +207,7 @@ const buildGraphData = () => {
       y: existing ? existing.y : Math.sin(angle) * dist,
       vx: 0,
       vy: 0,
-      radius: dev.type === 'router' ? 22 : 18,
+      radius: dev.type === 'router' ? 24 : 20,
       color: '#f59e0b' // amber
     })
   }
@@ -215,7 +216,7 @@ const buildGraphData = () => {
   for (const m of props.machines || []) {
     const existing = existingPosMap.get(m.id)
     const angle = Math.random() * Math.PI * 2
-    const dist = 160 + Math.random() * 80
+    const dist = 240 + Math.random() * 100
 
     newNodes.push({
       id: m.id,
@@ -228,12 +229,12 @@ const buildGraphData = () => {
       y: existing ? existing.y : Math.sin(angle) * dist,
       vx: 0,
       vy: 0,
-      radius: 20,
+      radius: 22,
       color: m.online ? '#3b82f6' : '#ef4444' // blue or red
     })
   }
 
-  // 3. Add Satellite Services attached to Nodes
+  // 3. Add Satellite Services attached to Nodes (Generous 120px radial distance)
   for (const [nodeId, sList] of Object.entries(props.nodeServices || {})) {
     const parentNode = newNodes.find(n => n.id === nodeId)
     if (!parentNode) continue
@@ -241,20 +242,22 @@ const buildGraphData = () => {
     sList.forEach((s, idx) => {
       const sId = `service_${s.id}`
       const existing = existingPosMap.get(sId)
-      const offsetAngle = (idx / Math.max(1, sList.length)) * Math.PI * 2
-      const offsetDist = 65
+      // Distribute evenly in circle around parent
+      const offsetAngle = (idx / Math.max(1, sList.length)) * Math.PI * 2 - Math.PI / 2
+      const offsetDist = 125
 
       newNodes.push({
         id: sId,
         name: s.name,
         type: 'service',
         parentId: nodeId,
+        parentNode: parentNode,
         serviceData: s,
         x: existing ? existing.x : parentNode.x + Math.cos(offsetAngle) * offsetDist,
         y: existing ? existing.y : parentNode.y + Math.sin(offsetAngle) * offsetDist,
         vx: 0,
         vy: 0,
-        radius: 12,
+        radius: 14,
         color: s.status === 'online' ? '#22c55e' : (s.status === 'offline' ? '#ef4444' : '#a855f7')
       })
     })
@@ -262,6 +265,13 @@ const buildGraphData = () => {
 
   // Map nodes for fast lookup
   const nodeMap = new Map(newNodes.map(n => [n.id, n]))
+
+  // Connect parent references on service nodes
+  for (const n of newNodes) {
+    if (n.parentId) {
+      n.parentNode = nodeMap.get(n.parentId)
+    }
+  }
 
   // 4. Resolve Links
   for (const link of props.links || []) {
@@ -280,20 +290,21 @@ const buildGraphData = () => {
   graphLinks.value = newLinks
 }
 
-// Physics Simulation Step
+// Physics Simulation Step with spacious parameters & collision buffers
 const tickPhysics = () => {
   if (!isPhysicsRunning.value) return
 
-  const repulsionForce = 4500
-  const springLength = 110
-  const springStrength = 0.04
-  const centerGravity = 0.015
-  const friction = 0.88
+  const repulsionForce = 24000
+  const springLength = 230
+  const serviceSpringLength = 125
+  const springStrength = 0.035
+  const centerGravity = 0.007
+  const friction = 0.86
 
   const nodes = graphNodes.value
   const links = graphLinks.value
 
-  // Repulsion between all node pairs
+  // Repulsion & Collision separation between all node pairs
   for (let i = 0; i < nodes.length; i++) {
     const n1 = nodes[i]
     for (let j = i + 1; j < nodes.length; j++) {
@@ -303,7 +314,8 @@ const tickPhysics = () => {
       const distSq = dx * dx + dy * dy || 1
       const dist = Math.sqrt(distSq)
 
-      if (dist < 500) {
+      // Inverse-square repulsion
+      if (dist < 650) {
         const force = repulsionForce / distSq
         const fx = (dx / dist) * force
         const fy = (dy / dist) * force
@@ -315,6 +327,24 @@ const tickPhysics = () => {
         if (n2 !== dragTarget) {
           n2.vx += fx
           n2.vy += fy
+        }
+      }
+
+      // Hard collision prevention buffer (nodes + labels safety)
+      const minDistance = n1.radius + n2.radius + 65
+      if (dist < minDistance) {
+        const overlap = minDistance - dist
+        const push = overlap * 0.15
+        const px = (dx / dist) * push
+        const py = (dy / dist) * push
+
+        if (n1 !== dragTarget) {
+          n1.vx -= px
+          n1.vy -= py
+        }
+        if (n2 !== dragTarget) {
+          n2.vx += px
+          n2.vy += py
         }
       }
     }
@@ -329,7 +359,7 @@ const tickPhysics = () => {
     const dx = t.x - s.x
     const dy = t.y - s.y
     const dist = Math.sqrt(dx * dx + dy * dy) || 1
-    const targetDist = link.type === 'service' ? 60 : springLength
+    const targetDist = link.type === 'service' ? serviceSpringLength : springLength
     const delta = dist - targetDist
     const force = delta * springStrength
     const fx = (dx / dist) * force
@@ -362,6 +392,47 @@ const tickPhysics = () => {
 
 // Particle flow animation timer
 let particleTime = 0
+
+// Helper to draw rounded pill backdrop behind text
+const drawTextPill = (ctx: CanvasRenderingContext2D, text1: string, text2: string | undefined, centerX: number, topY: number, font1: string, color1: string, font2?: string, color2?: string) => {
+  ctx.save()
+  ctx.font = font1
+  const width1 = ctx.measureText(text1).width
+  let width2 = 0
+  if (text2 && font2) {
+    ctx.font = font2
+    width2 = ctx.measureText(text2).width
+  }
+
+  const pillWidth = Math.max(width1, width2) + 16
+  const pillHeight = text2 ? 32 : 18
+  const pillX = centerX - pillWidth / 2
+  const pillY = topY
+
+  // Translucent Dark Frosted Pill
+  ctx.beginPath()
+  ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 6)
+  ctx.fillStyle = 'rgba(10, 15, 29, 0.82)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  // Text 1
+  ctx.font = font1
+  ctx.fillStyle = color1
+  ctx.textAlign = 'center'
+  ctx.fillText(text1, centerX, topY + (text2 ? 13 : 13))
+
+  // Text 2
+  if (text2 && font2 && color2) {
+    ctx.font = font2
+    ctx.fillStyle = color2
+    ctx.fillText(text2, centerX, topY + 26)
+  }
+
+  ctx.restore()
+}
 
 // Main Canvas Render Loop
 const render = () => {
@@ -428,11 +499,11 @@ const render = () => {
       ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)'
       ctx.lineWidth = 2
     } else if (link.type === 'service') {
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)'
-      ctx.lineWidth = 1.2
-    } else {
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)'
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)'
       ctx.lineWidth = 1.5
+    } else {
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)'
+      ctx.lineWidth = 1.8
     }
     ctx.stroke()
 
@@ -442,21 +513,18 @@ const render = () => {
     const py = s.y + (t.y - s.y) * particleOffset
 
     ctx.beginPath()
-    ctx.arc(px, py, 2, 0, Math.PI * 2)
-    ctx.fillStyle = link.type === 'service' ? '#a855f7' : '#38bdf8'
-    ctx.shadowColor = '#38bdf8'
+    ctx.arc(px, py, 2.5, 0, Math.PI * 2)
+    ctx.fillStyle = link.type === 'service' ? '#c084fc' : '#38bdf8'
+    ctx.shadowColor = link.type === 'service' ? '#a855f7' : '#38bdf8'
     ctx.shadowBlur = 6
     ctx.fill()
     ctx.shadowBlur = 0
 
-    // Optional link label (CIDR or Port)
-    if (link.label && transform.k > 0.7) {
+    // Only draw link label for CIDR links when zoomed in (never on service links)
+    if (link.type === 'cidr' && link.label && transform.k > 0.85) {
       const midX = (s.x + t.x) / 2
       const midY = (s.y + t.y) / 2
-      ctx.font = '9px monospace'
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.6)'
-      ctx.textAlign = 'center'
-      ctx.fillText(link.label, midX, midY - 4)
+      drawTextPill(ctx, link.label, undefined, midX, midY - 10, '9px monospace', 'rgba(148, 163, 184, 0.85)')
     }
   }
 
@@ -477,59 +545,79 @@ const render = () => {
     // Outer Glow / Pulse Ring
     if (isSelected || isHovered || n.online) {
       ctx.beginPath()
-      ctx.arc(n.x, n.y, n.radius + (isSelected ? 8 : (isHovered ? 6 : 4)), 0, Math.PI * 2)
+      ctx.arc(n.x, n.y, n.radius + (isSelected ? 9 : (isHovered ? 7 : 5)), 0, Math.PI * 2)
       ctx.fillStyle = isSelected 
-        ? 'rgba(59, 130, 246, 0.25)' 
-        : (isHovered ? 'rgba(168, 85, 247, 0.2)' : 'rgba(34, 197, 94, 0.15)')
+        ? 'rgba(59, 130, 246, 0.28)' 
+        : (isHovered ? 'rgba(168, 85, 247, 0.25)' : 'rgba(34, 197, 94, 0.18)')
       ctx.fill()
     }
 
     // Node Body
     ctx.beginPath()
     if (n.type === 'router' || n.type === 'subnet' || n.type === 'switch') {
-      // Rounded Rect / Hex shape for infrastructure hubs
-      const size = n.radius * 1.8
-      ctx.roundRect(n.x - size / 2, n.y - size / 2, size, size, 6)
+      // Rounded Rect for infrastructure hubs
+      const size = n.radius * 1.85
+      ctx.roundRect(n.x - size / 2, n.y - size / 2, size, size, 8)
     } else {
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2)
     }
 
     ctx.fillStyle = isSelected ? '#3b82f6' : (isHovered ? '#8b5cf6' : n.color)
     ctx.shadowColor = isSelected ? '#3b82f6' : (isHovered ? '#8b5cf6' : n.color)
-    ctx.shadowBlur = isSelected ? 16 : 8
+    ctx.shadowBlur = isSelected ? 18 : 10
     ctx.fill()
     ctx.shadowBlur = 0
 
     // Node Border
-    ctx.lineWidth = isSelected ? 2.5 : 1.5
+    ctx.lineWidth = isSelected ? 2.5 : 1.8
     ctx.strokeStyle = '#ffffff'
     ctx.stroke()
 
-    // Labels
-    ctx.textAlign = 'center'
-
+    // 4. Smart Non-Overlapping Labels
     if (n.type === 'service') {
-      // Service Satellite Node: Name & @:port badge
-      ctx.font = 'bold 10px sans-serif'
-      ctx.fillStyle = '#f8fafc'
-      ctx.fillText(n.name, n.x, n.y + n.radius + 12)
+      // Satellite Service Node: compute outward radial vector from parent
+      let textX = n.x
+      let textY = n.y + n.radius + 6
 
-      ctx.font = '9px monospace'
-      ctx.fillStyle = '#a855f7'
-      const portText = n.serviceData?.port ? `@:${n.serviceData.port}` : ''
-      ctx.fillText(portText, n.x, n.y + n.radius + 22)
-    } else {
-      // Machine or Router Node
-      ctx.font = 'bold 11px sans-serif'
-      ctx.fillStyle = '#f8fafc'
-      ctx.fillText(n.name, n.x, n.y + n.radius + 14)
-
-      ctx.font = '9px monospace'
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.8)'
-      const sub = n.ip || n.cidr || ''
-      if (sub) {
-        ctx.fillText(sub, n.x, n.y + n.radius + 25)
+      if (n.parentNode) {
+        const angle = Math.atan2(n.y - n.parentNode.y, n.x - n.parentNode.x)
+        const dist = n.radius + 6
+        textX = n.x + Math.cos(angle) * dist
+        textY = n.y + Math.sin(angle) * dist
+        // Adjust vertically if angle points up
+        if (Math.sin(angle) < -0.3) {
+          textY -= 30
+        }
       }
+
+      const portText = n.serviceData?.port ? `@:${n.serviceData.port}` : ''
+      const portColor = n.serviceData?.status === 'online' ? '#4ade80' : (n.serviceData?.status === 'offline' ? '#f87171' : '#c084fc')
+      
+      drawTextPill(
+        ctx, 
+        n.name, 
+        portText, 
+        textX, 
+        textY, 
+        'bold 11px sans-serif', 
+        '#f8fafc', 
+        'bold 9px monospace', 
+        portColor
+      )
+    } else {
+      // Machine or Router Node: Pill below node
+      const sub = n.ip || n.cidr || ''
+      drawTextPill(
+        ctx,
+        n.name,
+        sub,
+        n.x,
+        n.y + n.radius + 6,
+        'bold 12px sans-serif',
+        '#f8fafc',
+        '10px monospace',
+        'rgba(148, 163, 184, 0.9)'
+      )
     }
 
     ctx.restore()
@@ -562,7 +650,7 @@ const getNodeAtPosition = (worldX: number, worldY: number): GraphNode | null => 
     const n = nodes[i]
     const dx = worldX - n.x
     const dy = worldY - n.y
-    if (dx * dx + dy * dy <= (n.radius + 8) * (n.radius + 8)) {
+    if (dx * dx + dy * dy <= (n.radius + 12) * (n.radius + 12)) {
       return n
     }
   }

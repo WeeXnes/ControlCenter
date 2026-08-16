@@ -79,8 +79,7 @@ export default defineEventHandler(async (event) => {
         links.push({
           source: nodeId,
           target: `service_${s.id}`,
-          type: 'service',
-          label: `${s.protocol.toUpperCase()}:${s.port}`
+          type: 'service'
         });
       }
     }

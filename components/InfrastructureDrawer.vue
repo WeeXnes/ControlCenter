@@ -368,6 +368,8 @@ const testProbe = async (srv: any) => {
     const res = await $fetch<any>('/api/infrastructure/probe', {
       method: 'POST',
       body: {
+        nodeId: props.node.id,
+        serviceId: srv.id,
         host: props.node.ip || '127.0.0.1',
         port: srv.port,
         protocol: srv.protocol
@@ -382,6 +384,19 @@ const testProbe = async (srv: any) => {
     probingId.value = null
   }
 }
+
+const autoProbeUnchecked = () => {
+  if (!services.value) return
+  for (const srv of services.value) {
+    if (srv.status === 'unknown' || !srv.status) {
+      testProbe(srv)
+    }
+  }
+}
+
+watch(() => props.node?.id, () => {
+  autoProbeUnchecked()
+}, { immediate: true })
 
 const deleteDevice = async () => {
   if (!confirm(`Are you sure you want to remove "${props.node.name}" from your infrastructure?`)) return
