@@ -1,5 +1,6 @@
 import { environment } from '~/core/globals';
 import { loadJsonFile } from '~/util/jsonLoader';
+import { getCertFingerprint } from '~/server/util/certManager';
 import jwt from 'jsonwebtoken';
 
 export default defineEventHandler((event) => {
@@ -29,8 +30,12 @@ export default defineEventHandler((event) => {
     }
   }
 
+  const isHttps = getRequestProtocol(event) === 'https' || getRequestHeader(event, 'x-forwarded-proto') === 'https';
+
   return {
     onboarded,
-    authenticated
+    authenticated,
+    certFingerprint: getCertFingerprint(),
+    httpsEnabled: isHttps
   };
 });

@@ -23,6 +23,28 @@ interface DaemonConnection {
   lastSeen: string;
 }
 
+export function normalizeTelemetry(raw: any): TelemetryPayload {
+  if (!raw || typeof raw !== 'object') return {};
+  return {
+    hostname: raw.hostname || raw.Hostname || '',
+    os: raw.os || raw.Os || '',
+    cpuModel: raw.cpuModel || raw.CpuModel || '',
+    cpuCores: Number(raw.cpuCores ?? raw.CpuCores ?? 1),
+    cpuUsagePercent: Number(raw.cpuUsagePercent ?? raw.CpuUsagePercent ?? 0),
+    ramTotalBytes: Number(raw.ramTotalBytes ?? raw.RamTotalBytes ?? 0),
+    ramUsedBytes: Number(raw.ramUsedBytes ?? raw.RamUsedBytes ?? 0),
+    ramUsagePercent: Number(raw.ramUsagePercent ?? raw.RamUsagePercent ?? 0),
+    diskTotalBytes: Number(raw.diskTotalBytes ?? raw.DiskTotalBytes ?? 0),
+    diskUsedBytes: Number(raw.diskUsedBytes ?? raw.DiskUsedBytes ?? 0),
+    diskUsagePercent: Number(raw.diskUsagePercent ?? raw.DiskUsagePercent ?? 0),
+    uptimeSeconds: Number(raw.uptimeSeconds ?? raw.UptimeSeconds ?? 0),
+    ipAddresses: Array.isArray(raw.ipAddresses || raw.IpAddresses)
+      ? (raw.ipAddresses || raw.IpAddresses)
+      : [],
+    timestamp: raw.timestamp || raw.Timestamp || new Date().toISOString()
+  };
+}
+
 class DaemonManager {
   private activeConnections = new Map<string, DaemonConnection>();
   private telemetryCache = new Map<string, { data: TelemetryPayload; lastSeen: string }>();
@@ -53,19 +75,21 @@ class DaemonManager {
     return this.activeConnections.has(machineId);
   }
 
-  public updateTelemetry(machineId: string, data: TelemetryPayload) {
+  public updateTelemetry(machineId: string, data: any): TelemetryPayload {
     const now = new Date().toISOString();
+    const normalized = normalizeTelemetry(data);
     const conn = this.activeConnections.get(machineId);
     if (conn) {
       conn.lastSeen = now;
     }
     this.telemetryCache.set(machineId, {
       data: {
-        ...data,
+        ...normalized,
         timestamp: now
       },
       lastSeen: now
     });
+    return normalized;
   }
 
   public getTelemetry(machineId: string): (TelemetryPayload & { online: boolean; lastSeen?: string }) | null {

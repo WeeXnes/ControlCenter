@@ -47,18 +47,18 @@ describe('Daemon Zero-Trust WebSocket Security Tests', () => {
     expect(hasAuthError).toBe(true);
   });
 
-  it('Connecting to /ws/daemon with nonexistent machineId should be rejected', async () => {
-    const fakeId = '00000000-0000-0000-0000-000000000000';
-    const { messages } = await connectWebSocket(`${WS_BASE_URL}/ws/daemon?machineId=${fakeId}`);
-    const hasAuthError = messages.some(msg => {
+  it('Connecting to /ws/daemon with new machineId should auto-enroll and authenticate', async () => {
+    const autoId = 'auto-' + Date.now();
+    const { messages } = await connectWebSocket(`${WS_BASE_URL}/ws/daemon?machineId=${autoId}`);
+    const isAuth = messages.some(msg => {
       try {
         const parsed = JSON.parse(msg);
-        return parsed.type === 'error' && parsed.message.includes('Unknown machine ID');
+        return parsed.type === 'authenticated' && parsed.machineId === autoId;
       } catch {
         return false;
       }
     });
-    expect(hasAuthError).toBe(true);
+    expect(isAuth).toBe(true);
   });
 
   it('Connecting to /ws/daemon with invalid token should be rejected if machine has key configured', async () => {

@@ -3,7 +3,6 @@ set -eo pipefail
 
 SERVICE_NAME="controlcenter-web"
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENTRY_POINT="$INSTALL_DIR/server/index.mjs"
 NODE_BIN="$(which node || echo "/usr/bin/node")"
 
 # Determine target execution user and group
@@ -15,7 +14,7 @@ fi
 RUN_GROUP="$(id -gn "$RUN_USER")"
 
 PORT="${PORT:-3000}"
-HOST="${HOST:-127.0.0.1}"
+HOST="${HOST:-0.0.0.0}"
 
 if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
     echo "Uninstalling $SERVICE_NAME service..."
@@ -29,27 +28,39 @@ if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
     exit 0
 fi
 
+if [ -f "$INSTALL_DIR/.output/server/index.mjs" ]; then
+    ENTRY_POINT="$INSTALL_DIR/.output/server/index.mjs"
+elif [ -f "$INSTALL_DIR/server/index.mjs" ]; then
+    ENTRY_POINT="$INSTALL_DIR/server/index.mjs"
+else
+    echo "ERROR: Server entrypoint not found (checked '.output/server/index.mjs' and 'server/index.mjs')."
+    echo "Make sure to run 'npm run build' before installing the service."
+    exit 1
+fi
+
 echo "=========================================="
 echo " ControlCenter Web Systemd Service Installer"
 echo "=========================================="
 echo "  Service Name:       $SERVICE_NAME"
 echo "  Install Directory:  $INSTALL_DIR"
+echo "  Entrypoint:         $ENTRY_POINT"
 echo "  User:               $RUN_USER"
 echo "  Group:              $RUN_GROUP"
 echo "  Node Executable:    $NODE_BIN"
 echo "  Port:               $PORT"
 echo "=========================================="
 
-if [ ! -f "$ENTRY_POINT" ]; then
-    echo "ERROR: Entrypoint '$ENTRY_POINT' not found."
-    echo "Make sure this script is run from the root of the unpacked ControlCenter Web directory."
-    exit 1
-fi
+# Make start.sh executable
+chmod +x "$INSTALL_DIR/start.sh" 2>/dev/null || true
 
 # Rebuild native modules if npm is available to ensure GLIBC compatibility on target OS
 if command -v npm &>/dev/null; then
     echo "[+] Rebuilding native modules for local GLIBC compatibility..."
-    (cd "$INSTALL_DIR/server" && npm rebuild &>/dev/null || true)
+    if [ -d "$INSTALL_DIR/.output/server" ]; then
+        (cd "$INSTALL_DIR/.output/server" && npm rebuild &>/dev/null || true)
+    elif [ -d "$INSTALL_DIR/server" ]; then
+        (cd "$INSTALL_DIR/server" && npm rebuild &>/dev/null || true)
+    fi
 fi
 
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -62,15 +73,16 @@ fi
 
 cat <<EOF > "$UNIT_FILE"
 [Unit]
-Description=ControlCenter Web Interface
-After=network.target
+Description=ControlCenter Web Interface (Self-Signed HTTPS & Zero-Trust Server)
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=$RUN_USER
 Group=$RUN_GROUP
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$NODE_BIN server/index.mjs
+ExecStart=$INSTALL_DIR/start.sh
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production

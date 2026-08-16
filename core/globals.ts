@@ -33,10 +33,13 @@ export namespace environment {
   export namespace paths {
     export let data: string = process.env.DATA_DIR || path.join(os.homedir(), '.controlcenter');
     export let sshKeys: string = path.join(os.homedir(), '.ssh', 'ControlCenterKeys');
+    export let certs: string = path.join(paths.data, 'certs');
   }
 
   export namespace files {
     export let settings: string = path.join(paths.data, 'settings.json');
+    export let cert: string = path.join(paths.certs, 'cert.pem');
+    export let key: string = path.join(paths.certs, 'key.pem');
   }
 
   export let settings: SettingsJsonFile = {

@@ -277,6 +277,7 @@ const activeTab = ref<'config' | 'enrollment'>('config')
 const availableKeys = ref<string[]>([])
 const copied = ref(false)
 const showApiKey = ref(false)
+const serverCertFingerprint = ref('')
 
 const form = reactive({
   id: '',
@@ -312,14 +313,16 @@ const standaloneCliCommand = computed(() => {
   const server = currentServerUrl.value
   const id = form.id || 'MACHINE_ID'
   const key = form.apiKey || 'TOKEN'
-  return `sudo controlcenter-daemon --install-service --server "${server}" --id "${id}" --key "${key}"`
+  const pin = serverCertFingerprint.value ? ` --pin "${serverCertFingerprint.value}"` : ''
+  return `sudo controlcenter-daemon --install-service --server "${server}" --id "${id}" --key "${key}"${pin}`
 })
 
 const aurCliCommand = computed(() => {
   const server = currentServerUrl.value
   const id = form.id || 'MACHINE_ID'
   const key = form.apiKey || 'TOKEN'
-  return `sudo controlcenter-daemon --install-service --server "${server}" --id "${id}" --key "${key}"`
+  const pin = serverCertFingerprint.value ? ` --pin "${serverCertFingerprint.value}"` : ''
+  return `sudo controlcenter-daemon --install-service --server "${server}" --id "${id}" --key "${key}"${pin}`
 })
 
 const copyCommand = (text: string) => {
@@ -339,8 +342,17 @@ const fetchSshKeys = async () => {
   } catch {}
 }
 
+const fetchServerStatus = async () => {
+  try {
+    const res = await $fetch<{ certFingerprint?: string }>('/api/auth/status')
+    if (res?.certFingerprint) {
+      serverCertFingerprint.value = res.certFingerprint
+    }
+  } catch {}
+}
+
 onMounted(async () => {
-  await fetchSshKeys()
+  await Promise.all([fetchSshKeys(), fetchServerStatus()])
 
   if (props.initialData) {
     isEdit.value = true

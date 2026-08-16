@@ -237,13 +237,28 @@ watch(() => route.query.machine, (newMachineId) => {
   }
 })
 
+const refreshAll = async () => {
+  try {
+    const list = await $fetch<any[]>('/api/machines')
+    const currentSummary = JSON.stringify(machines.value.map(m => ({ id: m.id, name: m.name, ip: m.ip })))
+    const newSummary = JSON.stringify(list.map(m => ({ id: m.id, name: m.name, ip: m.ip })))
+    if (currentSummary !== newSummary) {
+      machines.value = list
+      if (!selectedId.value && list.length > 0) {
+        selectedId.value = list[0].id
+        router.replace({ query: { ...route.query, machine: list[0].id } })
+      }
+    }
+  } catch {}
+
+  if (machines.value.length > 0) {
+    await fetchAllTelemetry()
+  }
+}
+
 onMounted(async () => {
   await checkAuthAndLoad()
-  pollTimer = setInterval(() => {
-    if (machines.value.length > 0) {
-      fetchAllTelemetry()
-    }
-  }, 3000)
+  pollTimer = setInterval(refreshAll, 3000)
 })
 
 onBeforeUnmount(() => {
