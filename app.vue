@@ -24,10 +24,13 @@
             <button 
               v-if="isLoggedIn" 
               @click="showSettingsModal = true" 
-              class="btn btn-ghost btn-sm rounded-lg hover:bg-base-content/10 transition-all gap-1.5 text-xs font-semibold"
+              class="btn btn-ghost btn-sm rounded-lg hover:bg-base-content/10 transition-all gap-1.5 text-xs font-semibold relative"
             >
               <Icon name="material-symbols:settings-outline-rounded" size="16" />
               Settings
+              <span v-if="pendingApprovalsCount > 0" class="badge badge-warning badge-xs font-mono font-bold px-1.5 py-0.5 animate-pulse">
+                {{ pendingApprovalsCount }}
+              </span>
             </button>
 
             <button 
@@ -75,9 +78,18 @@ const route = useRoute()
 const isLoggedIn = ref(false)
 const isAuthResolving = ref(true)
 const showSettingsModal = ref(false)
+const pendingApprovalsCount = ref(0)
 
 const isAuthPage = computed(() => ['/login', '/setup'].includes(route.path))
 const showNavigation = computed(() => !isAuthPage.value && isLoggedIn.value)
+
+const checkPendingApprovals = async () => {
+  if (!isLoggedIn.value) return
+  try {
+    const list = await $fetch<any[]>('/api/machines')
+    pendingApprovalsCount.value = (list || []).filter(m => m.status === 'pending').length
+  } catch {}
+}
 
 const checkAuth = async () => {
   try {
@@ -90,6 +102,10 @@ const checkAuth = async () => {
       router.replace('/login')
     } else if (status.onboarded && status.authenticated && isAuthPage.value) {
       router.replace('/')
+    }
+
+    if (isLoggedIn.value) {
+      checkPendingApprovals()
     }
   } catch {
     isLoggedIn.value = false
@@ -115,6 +131,7 @@ watch(() => route.path, () => {
 
 onMounted(() => {
   checkAuth()
+  setInterval(checkPendingApprovals, 4000)
 })
 </script>
 

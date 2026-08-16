@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'GET') {
-    return environment.settings.machines.map(m => ({
+    return (environment.settings.machines || []).map(m => ({
       id: m.id,
       name: m.name,
       ip: m.ip,
@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
       sshUser: m.sshUser || 'root',
       sshAuthType: m.sshAuthType || 'password',
       sshKeyFile: m.sshKeyFile || '',
+      status: m.status || 'approved',
       addedAt: m.addedAt,
       lastSeen: m.lastSeen
     }));
@@ -49,8 +50,13 @@ export default defineEventHandler(async (event) => {
       sshAuthType: sshAuthType === 'key' ? 'key' : 'password',
       sshPassword: sshPassword || '',
       sshKeyFile: sshKeyFile || sshPrivateKey || '',
+      status: 'approved',
       addedAt: new Date().toISOString()
     };
+
+    if (!environment.settings.machines) {
+      environment.settings.machines = [];
+    }
 
     environment.settings.machines.push(newMachine);
     saveJsonFile();
@@ -66,11 +72,11 @@ export default defineEventHandler(async (event) => {
         sshPort: newMachine.sshPort,
         sshUser: newMachine.sshUser,
         sshAuthType: newMachine.sshAuthType,
-        sshKeyFile: newMachine.sshKeyFile
+        sshKeyFile: newMachine.sshKeyFile,
+        status: newMachine.status
       }
     };
   }
 
   throw createError({ statusCode: 405, statusMessage: 'Method Not Allowed' });
 });
-

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 
 export interface TelemetryPayload {
   hostname?: string;
+  userName?: string;
   os?: string;
   cpuModel?: string;
   cpuCores?: number;
@@ -27,6 +28,7 @@ export function normalizeTelemetry(raw: any): TelemetryPayload {
   if (!raw || typeof raw !== 'object') return {};
   return {
     hostname: raw.hostname || raw.Hostname || '',
+    userName: raw.userName || raw.username || raw.UserName || raw.user || raw.User || '',
     os: raw.os || raw.Os || '',
     cpuModel: raw.cpuModel || raw.CpuModel || '',
     cpuCores: Number(raw.cpuCores ?? raw.CpuCores ?? 1),

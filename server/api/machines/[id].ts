@@ -1,5 +1,6 @@
 import { environment } from '~/core/globals';
 import { saveJsonFile, loadJsonFile } from '~/util/jsonLoader';
+import { daemonManager } from '~/server/util/daemonManager';
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id');
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
       sshAuthType: m.sshAuthType,
       sshKeyFile: m.sshKeyFile || '',
       hasPassword: !!m.sshPassword,
+      status: m.status || 'approved',
       addedAt: m.addedAt,
       lastSeen: m.lastSeen
     };
@@ -46,7 +48,8 @@ export default defineEventHandler(async (event) => {
       sshUser: body.sshUser !== undefined ? String(body.sshUser).trim() : existing.sshUser,
       sshAuthType: body.sshAuthType === 'key' ? 'key' : 'password',
       sshPassword: body.sshPassword !== undefined && body.sshPassword !== '' ? String(body.sshPassword) : existing.sshPassword,
-      sshKeyFile: body.sshKeyFile !== undefined ? String(body.sshKeyFile) : (body.sshPrivateKey !== undefined ? String(body.sshPrivateKey) : existing.sshKeyFile)
+      sshKeyFile: body.sshKeyFile !== undefined ? String(body.sshKeyFile) : (body.sshPrivateKey !== undefined ? String(body.sshPrivateKey) : existing.sshKeyFile),
+      status: body.status !== undefined ? body.status : existing.status
     };
 
     saveJsonFile();
@@ -54,11 +57,12 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'DELETE') {
+    const m = environment.settings.machines[index];
     environment.settings.machines.splice(index, 1);
     saveJsonFile();
+    daemonManager.unregisterDaemon(m.id);
     return { success: true, message: 'Machine deleted successfully' };
   }
 
   throw createError({ statusCode: 405, statusMessage: 'Method Not Allowed' });
 });
-

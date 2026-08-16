@@ -12,6 +12,7 @@ export interface Machine {
   sshAuthType: 'password' | 'key';
   sshPassword?: string;
   sshKeyFile?: string;
+  status?: 'pending' | 'approved' | 'rejected';
   addedAt: string;
   lastSeen?: string;
 }
@@ -20,6 +21,7 @@ export interface SettingsJsonFile {
   password_hash: string;
   jwt_secret: string;
   onboarded: boolean;
+  default_ssh_key?: string;
   machines: Machine[];
 }
 

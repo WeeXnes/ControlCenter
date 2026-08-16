@@ -2,12 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { environment } from '~/core/globals';
-
-function ensureDirectoryExists() {
-  if (!fs.existsSync(environment.paths.sshKeys)) {
-    fs.mkdirSync(environment.paths.sshKeys, { recursive: true, mode: 0o700 });
-  }
-}
+import {
+  listSshKeys,
+  getDefaultKeyName,
+  setDefaultKeyName,
+  getPublicKey,
+  ensureSshKeyDirectory
+} from '~/server/util/sshKeyManager';
 
 function isValidFilename(filename: string): boolean {
   if (!filename || typeof filename !== 'string') return false;
@@ -20,21 +21,19 @@ function isValidFilename(filename: string): boolean {
 
 export default defineEventHandler(async (event) => {
   const method = getMethod(event);
-  ensureDirectoryExists();
+  ensureSshKeyDirectory();
 
   if (method === 'GET') {
     try {
-      const files = fs.readdirSync(environment.paths.sshKeys);
-      const keys = files.filter(file => {
-        if (file.startsWith('.') || file.endsWith('.pub')) return false;
-        try {
-          const fullPath = path.join(environment.paths.sshKeys, file);
-          return fs.statSync(fullPath).isFile();
-        } catch {
-          return false;
-        }
-      });
-      return { keys };
+      const keys = listSshKeys();
+      const defaultKey = getDefaultKeyName();
+      const defaultPublicKey = defaultKey ? getPublicKey(defaultKey) : null;
+
+      return {
+        keys,
+        defaultKey,
+        defaultPublicKey
+      };
     } catch (err: any) {
       throw createError({
         statusCode: 500,
@@ -43,10 +42,31 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  if (method === 'PUT') {
+    const body = await readBody(event).catch(() => ({}));
+    const defaultKey = body?.defaultKey ? String(body.defaultKey).trim() : '';
+
+    if (!defaultKey || !setDefaultKeyName(defaultKey)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Invalid or nonexistent key name "${defaultKey}"`
+      });
+    }
+
+    const defaultPublicKey = getPublicKey(defaultKey);
+    return {
+      success: true,
+      defaultKey,
+      defaultPublicKey,
+      message: `Default SSH key updated to "${defaultKey}"`
+    };
+  }
+
   if (method === 'POST') {
     const body = await readBody(event);
     const filename = body?.filename ? String(body.filename).trim() : '';
     const content = body?.content ? String(body.content) : '';
+    const makeDefault = Boolean(body?.makeDefault);
 
     if (!filename || !isValidFilename(filename)) {
       throw createError({
@@ -70,15 +90,24 @@ export default defineEventHandler(async (event) => {
       fs.writeFileSync(targetPath, formattedContent, { mode: 0o600 });
       fs.chmodSync(targetPath, 0o600);
 
-      // Automatically generate .pub file for ssh-copy-id compatibility
+      // Automatically extract/generate .pub file
       try {
         execSync(`ssh-keygen -y -f ${JSON.stringify(targetPath)} > ${JSON.stringify(pubPath)}`);
         fs.chmodSync(pubPath, 0o644);
-      } catch {
-        // Ignore pubkey generation errors if key type is unsupported by local ssh-keygen
+      } catch {}
+
+      const keys = listSshKeys();
+      if (makeDefault || keys.length === 1 || filename === 'default') {
+        setDefaultKeyName(filename);
       }
 
-      return { success: true, filename };
+      const publicKey = getPublicKey(filename);
+
+      return {
+        success: true,
+        filename,
+        publicKey
+      };
     } catch (err: any) {
       throw createError({
         statusCode: 500,

@@ -1,6 +1,7 @@
 import { environment, type Machine } from '~/core/globals';
 import { loadJsonFile, saveJsonFile } from '~/util/jsonLoader';
 import { daemonManager } from '~/server/util/daemonManager';
+import { getDefaultKeyName, getPublicKey } from '~/server/util/sshKeyManager';
 
 export default defineWebSocketHandler({
   open(peer) {
@@ -58,7 +59,6 @@ export default defineWebSocketHandler({
     let machine = environment.settings.machines.find((m) => m.id === machineId);
 
     // Auto-Discovery & Zero-Touch Enrollment:
-    // If the daemon connects with a new Machine ID, automatically register the machine!
     if (!machine) {
       const nodeReq = (peer as any)._internal?.nodeReq;
       const req = (peer as any).request;
@@ -79,14 +79,26 @@ export default defineWebSocketHandler({
         sshPort: 22,
         sshUser: 'root',
         sshAuthType: 'key',
+        status: 'pending',
         addedAt: new Date().toISOString(),
         lastSeen: new Date().toISOString()
       };
 
       environment.settings.machines.push(machine);
       saveJsonFile();
-      console.log(`[Auto-Enroll] Automatically enrolled new machine: ${machine.name} (${machine.id}) with IP ${machine.ip}`);
+      console.log(`[Auto-Enroll] Enrolled new device pending approval: ${machine.name} (${machine.id}) with IP ${machine.ip}`);
     } else {
+      if (machine.status === 'rejected') {
+        peer.send(
+          JSON.stringify({
+            type: 'error',
+            message: 'Device connection has been rejected by administrator.'
+          })
+        );
+        peer.close();
+        return;
+      }
+
       // Validate token if machine has an apiKey configured
       if (machine.apiKey) {
         if (!token || token !== machine.apiKey) {
@@ -100,7 +112,6 @@ export default defineWebSocketHandler({
           return;
         }
       } else if (token) {
-        // First-time token assignment
         machine.apiKey = token;
         saveJsonFile();
       }
@@ -117,9 +128,37 @@ export default defineWebSocketHandler({
         type: 'authenticated',
         machineId: machine.id,
         machineName: machine.name,
-        message: 'Successfully authenticated with ControlCenter server.'
+        status: machine.status || 'pending',
+        message:
+          machine.status === 'approved'
+            ? 'Successfully authenticated with ControlCenter server.'
+            : 'Device connected. Awaiting administrator approval in Web UI Settings.'
       })
     );
+
+    // Only provision SSH keys if device is approved
+    if (machine.status === 'approved') {
+      const defaultKey = getDefaultKeyName();
+      if (defaultKey) {
+        const pubKey = getPublicKey(defaultKey);
+        if (pubKey) {
+          machine.sshAuthType = 'key';
+          machine.sshKeyFile = defaultKey;
+          machine.sshPort = machine.sshPort || 22;
+          machine.sshUser = machine.sshUser || 'root';
+          saveJsonFile();
+
+          peer.send(
+            JSON.stringify({
+              type: 'setup_ssh',
+              keyName: defaultKey,
+              publicKey: pubKey,
+              defaultUser: machine.sshUser || 'root'
+            })
+          );
+        }
+      }
+    }
   },
 
   message(peer, message) {
@@ -157,11 +196,16 @@ export default defineWebSocketHandler({
             sshPort: 22,
             sshUser: 'root',
             sshAuthType: 'key',
+            status: 'pending',
             addedAt: new Date().toISOString(),
             lastSeen: new Date().toISOString()
           };
           environment.settings.machines.push(machine);
           saveJsonFile();
+        } else if (machine.status === 'rejected') {
+          peer.send(JSON.stringify({ type: 'error', message: 'Device connection rejected.' }));
+          peer.close();
+          return;
         } else if (machine.apiKey && token !== machine.apiKey) {
           peer.send(
             JSON.stringify({
@@ -180,9 +224,30 @@ export default defineWebSocketHandler({
           JSON.stringify({
             type: 'authenticated',
             machineId: machine.id,
+            status: machine.status || 'pending',
             message: 'Successfully authenticated.'
           })
         );
+
+        if (machine.status === 'approved') {
+          const defaultKey = getDefaultKeyName();
+          if (defaultKey) {
+            const pubKey = getPublicKey(defaultKey);
+            if (pubKey) {
+              machine.sshAuthType = 'key';
+              machine.sshKeyFile = defaultKey;
+              saveJsonFile();
+              peer.send(
+                JSON.stringify({
+                  type: 'setup_ssh',
+                  keyName: defaultKey,
+                  publicKey: pubKey,
+                  defaultUser: machine.sshUser || 'root'
+                })
+              );
+            }
+          }
+        }
         return;
       }
 
@@ -205,6 +270,10 @@ export default defineWebSocketHandler({
               m.name = norm.hostname;
               changed = true;
             }
+            if (norm.userName && (m.sshUser === 'root' || !m.sshUser)) {
+              m.sshUser = norm.userName;
+              changed = true;
+            }
             if (Array.isArray(norm.ipAddresses) && norm.ipAddresses.length > 0) {
               const nonLoopbackIp = norm.ipAddresses.find(
                 (ip: string) => !ip.startsWith('127.') && ip !== '::1' && !ip.startsWith('169.254.')
@@ -218,8 +287,17 @@ export default defineWebSocketHandler({
             m.lastSeen = new Date().toISOString();
             if (changed) {
               saveJsonFile();
-              console.log(`[Auto-Enroll] Updated machine specifications: Name="${m.name}", IP="${m.ip}"`);
+              console.log(`[Auto-Enroll] Updated machine specifications: Name="${m.name}", User="${m.sshUser}", IP="${m.ip}"`);
             }
+          }
+        }
+      } else if (payload.type === 'ssh_provisioned') {
+        console.log(`[SSH Auto-Provisioning] Successfully authorized SSH key on node: ${machineId} (User: ${payload.user || 'root'})`);
+        if (payload.user && environment.settings?.machines) {
+          const m = environment.settings.machines.find((item) => item.id === machineId);
+          if (m) {
+            m.sshUser = payload.user;
+            saveJsonFile();
           }
         }
       } else if (payload.type === 'action_result') {

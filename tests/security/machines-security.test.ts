@@ -62,6 +62,14 @@ describe('Machine API Security - Unauthenticated Access Blocked', () => {
     });
     expect(res.status).toBe(401);
   });
+
+  it(`POST /api/machines/${MACHINE_ID}/approve → 401 without auth`, async () => {
+    const res = await fetch(`${BASE_URL}/api/machines/${MACHINE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(401);
+  });
 });
 
 describe('Machine API Security - Invalid Token Rejected', () => {

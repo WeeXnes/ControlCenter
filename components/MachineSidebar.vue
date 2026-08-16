@@ -76,6 +76,9 @@
             <span class="font-bold text-xs tracking-tight truncate group-hover:text-primary transition-colors">
               {{ machine.name }}
             </span>
+            <span v-if="machine.status === 'pending'" class="badge badge-warning badge-xs font-mono font-bold px-1 text-[9px]">
+              PENDING
+            </span>
           </div>
 
           <div class="flex items-center gap-1.5">

@@ -68,15 +68,15 @@
 
           <button 
             @click="$emit('edit-machine', machine)" 
-            class="btn btn-ghost btn-sm btn-square rounded-lg hover:bg-base-content/10"
+            class="btn btn-ghost btn-xs btn-square text-base-content/60 hover:text-base-content"
             title="Edit Machine Settings"
           >
-            <Icon name="material-symbols:edit-rounded" size="16" />
+            <Icon name="material-symbols:edit-outline-rounded" size="16" />
           </button>
 
           <button 
             @click="$emit('delete-machine', machine.id)" 
-            class="btn btn-ghost btn-sm btn-square rounded-lg hover:bg-error/10 text-error"
+            class="btn btn-ghost btn-xs btn-square text-error hover:bg-error/10"
             title="Delete Machine"
           >
             <Icon name="material-symbols:delete-outline-rounded" size="16" />
@@ -113,6 +113,29 @@
           System Information
         </button>
       </div>
+    </div>
+
+    <!-- Pending Approval Banner -->
+    <div v-if="machine.status === 'pending'" class="p-4 rounded-xl bg-warning/10 border border-warning/30 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-warning/20 text-warning flex items-center justify-center flex-shrink-0">
+          <Icon name="material-symbols:lock-open-rounded" size="20" />
+        </div>
+        <div>
+          <h4 class="font-bold text-sm text-base-content">Device Awaiting Approval</h4>
+          <p class="text-xs text-base-content/70">Approve this node to authorize SSH key authentication and activate full remote control.</p>
+        </div>
+      </div>
+
+      <button 
+        @click="approveCurrentMachine" 
+        class="btn btn-success btn-sm font-bold text-success-content shadow gap-1 rounded-lg"
+        :disabled="approving"
+      >
+        <span v-if="approving" class="loading loading-spinner loading-xs"></span>
+        <Icon v-else name="material-symbols:check-circle-rounded" size="16" />
+        Approve Device
+      </button>
     </div>
 
     <!-- Tab 1: Telemetry Gauges & Hardware Cards -->
@@ -293,6 +316,19 @@ const setTab = (tab: 'telemetry' | 'terminal' | 'info') => {
 const actionModalOpen = ref(false)
 const pendingAction = ref<'restart' | 'shutdown'>('restart')
 const actionExecuting = ref(false)
+const approving = ref(false)
+
+const approveCurrentMachine = async () => {
+  approving.value = true
+  try {
+    await $fetch(`/api/machines/${props.machine.id}/approve`, { method: 'POST' })
+    props.machine.status = 'approved'
+  } catch (err: any) {
+    alert(`Failed to approve device: ${err.message}`)
+  } finally {
+    approving.value = false
+  }
+}
 
 const confirmAction = (action: 'restart' | 'shutdown') => {
   pendingAction.value = action
