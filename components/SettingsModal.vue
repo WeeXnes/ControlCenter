@@ -489,6 +489,71 @@
           </div>
         </div>
 
+        <!-- Section: Change Admin Password -->
+        <div class="p-4 rounded-lg bg-base-100/60 border border-base-content/10 space-y-3">
+          <div class="flex items-center justify-between border-b border-base-content/5 pb-2">
+            <div class="flex items-center gap-2">
+              <Icon name="material-symbols:password-rounded" class="text-primary" size="18" />
+              <h4 class="font-bold text-xs text-base-content">Change Admin Password</h4>
+            </div>
+          </div>
+
+          <form @submit.prevent="handleChangePassword" class="space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="form-control">
+                <label class="label py-1">
+                  <span class="label-text text-[11px] font-semibold text-base-content/70">Current Password</span>
+                </label>
+                <input 
+                  v-model="currentPassword" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  class="input input-sm rounded-lg bg-base-100 border-base-content/15 focus:border-primary text-xs" 
+                  required 
+                />
+              </div>
+
+              <div class="form-control">
+                <label class="label py-1">
+                  <span class="label-text text-[11px] font-semibold text-base-content/70">New Password</span>
+                </label>
+                <input 
+                  v-model="newPassword" 
+                  type="password" 
+                  placeholder="Min 6 chars" 
+                  class="input input-sm rounded-lg bg-base-100 border-base-content/15 focus:border-primary text-xs" 
+                  required 
+                />
+              </div>
+
+              <div class="form-control">
+                <label class="label py-1">
+                  <span class="label-text text-[11px] font-semibold text-base-content/70">Confirm New Password</span>
+                </label>
+                <input 
+                  v-model="confirmPassword" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  class="input input-sm rounded-lg bg-base-100 border-base-content/15 focus:border-primary text-xs" 
+                  required 
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-1">
+              <button 
+                type="submit" 
+                class="btn btn-primary btn-xs rounded-md font-semibold gap-1.5 shadow"
+                :disabled="changingPassword || !currentPassword || !newPassword || !confirmPassword"
+              >
+                <span v-if="changingPassword" class="loading loading-spinner loading-xs"></span>
+                <Icon v-else name="material-symbols:save-rounded" size="14" />
+                Update Password
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div v-if="errorMsg" class="alert alert-error text-xs py-2 rounded-lg">
           <span>{{ errorMsg }}</span>
         </div>
@@ -767,6 +832,46 @@ const confirmDisable2fa = async () => {
     errorMsg.value = err.data?.statusMessage || 'Invalid 2FA code'
   } finally {
     loading2fa.value = false
+  }
+}
+
+// Password Change State & Actions
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const changingPassword = ref(false)
+
+const handleChangePassword = async () => {
+  errorMsg.value = ''
+  successMsg.value = ''
+
+  if (newPassword.value.length < 6) {
+    errorMsg.value = 'New password must be at least 6 characters long.'
+    return
+  }
+
+  if (newPassword.value !== confirmPassword.value) {
+    errorMsg.value = 'New passwords do not match.'
+    return
+  }
+
+  changingPassword.value = true
+  try {
+    const res = await $fetch<any>('/api/auth/change-password', {
+      method: 'POST',
+      body: {
+        currentPassword: currentPassword.value,
+        newPassword: newPassword.value
+      }
+    })
+    successMsg.value = res.message || 'Admin password updated successfully.'
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+  } catch (err: any) {
+    errorMsg.value = err.data?.statusMessage || err.message || 'Failed to update password.'
+  } finally {
+    changingPassword.value = false
   }
 }
 

@@ -6,7 +6,6 @@ import { loadJsonFile } from '~/util/jsonLoader';
 
 const require = createRequire(import.meta.url);
 const otplib = require('otplib');
-const authenticator = otplib.authenticator || otplib;
 
 export default defineEventHandler(async (event) => {
   if (!environment.settings || !environment.settings.jwt_secret) {
@@ -22,10 +21,10 @@ export default defineEventHandler(async (event) => {
 
   const service = 'ControlCenter';
   const username = 'admin';
-  const secret = authenticator.generateSecret();
+  const secret = otplib.generateSecret ? otplib.generateSecret() : otplib.authenticator.generateSecret();
 
-  const otpauth = typeof authenticator.keyuri === 'function'
-    ? authenticator.keyuri(username, service, secret)
+  const otpauth = otplib.generateURI
+    ? otplib.generateURI({ secret, label: username, issuer: service })
     : `otpauth://totp/${encodeURIComponent(service)}:${encodeURIComponent(username)}?secret=${secret}&issuer=${encodeURIComponent(service)}`;
 
   const qrCodeUrl = await QRCode.toDataURL(otpauth);

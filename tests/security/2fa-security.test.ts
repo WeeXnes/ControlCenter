@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { authenticator } from 'otplib';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const otplib = require('otplib');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const BASE_URL = process.env.TEST_BASE_URL || 'https://localhost:3000';
@@ -30,13 +33,21 @@ describe('2FA Security - Endpoint Access Control', () => {
     expect(res.status).toBe(401);
   });
 
+  it('POST /api/auth/change-password without auth token should return 401', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'test', newPassword: 'newpassword123' })
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('POST /api/2fa/verify-login should be public (returns 400 when missing parameters, not 401)', async () => {
     const res = await fetch(`${BASE_URL}/api/2fa/verify-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
-    // Should return 400 Bad Request, NOT 401 Unauthorized
     expect(res.status).toBe(400);
   });
 });
@@ -44,7 +55,6 @@ describe('2FA Security - Endpoint Access Control', () => {
 describe('2FA Security - Partial Token Segregation', () => {
 
   it('Partial 2FA token (isPartial: true) must be rejected on protected API endpoints', async () => {
-    // Generate a temporary partial token like step-1 login would create
     const partialToken = jwt.sign(
       { userId: 'admin', isPartial: true },
       'test-or-fallback-secret',
@@ -56,7 +66,8 @@ describe('2FA Security - Partial Token Segregation', () => {
       '/api/ssh-keys',
       '/api/2fa/setup',
       '/api/2fa/enable',
-      '/api/2fa/disable'
+      '/api/2fa/disable',
+      '/api/auth/change-password'
     ];
 
     for (const route of protectedRoutes) {
@@ -86,7 +97,6 @@ describe('2FA Security - Partial Token Segregation', () => {
       })
     });
 
-    // Should reject because isPartial is not true or invalid secret
     expect([400, 401]).toContain(res.status);
   });
 });
@@ -111,5 +121,15 @@ describe('2FA Security - Code Validation & Protection', () => {
     const data = await res.json();
     expect(data).toHaveProperty('twoFactorEnabled');
     expect(typeof data.twoFactorEnabled).toBe('boolean');
+  });
+
+  it('otplib verify accurately validates live generated TOTP tokens', async () => {
+    const secret = otplib.generateSecret();
+    const token = otplib.generateSync({ secret });
+    const verifyRes = await otplib.verify({ token, secret, epochTolerance: 60 });
+    expect(verifyRes.valid).toBe(true);
+
+    const invalidRes = await otplib.verify({ token: '000000', secret, epochTolerance: 60 });
+    expect(invalidRes.valid).toBe(false);
   });
 });

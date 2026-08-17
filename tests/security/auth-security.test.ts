@@ -14,6 +14,7 @@ const PROTECTED_ENDPOINTS = [
   { method: 'GET', path: '/api/2fa/setup' },
   { method: 'POST', path: '/api/2fa/enable' },
   { method: 'POST', path: '/api/2fa/disable' },
+  { method: 'POST', path: '/api/auth/change-password' },
 ];
 
 // Machine-specific protected endpoints (use a valid UUID format)

@@ -5,7 +5,6 @@ import { loadJsonFile, saveJsonFile } from '~/util/jsonLoader';
 
 const require = createRequire(import.meta.url);
 const otplib = require('otplib');
-const authenticator = otplib.authenticator || otplib;
 
 export default defineEventHandler(async (event) => {
   assertMethod(event, 'POST');
@@ -28,13 +27,12 @@ export default defineEventHandler(async (event) => {
 
   let isValid = false;
   try {
-    if (typeof authenticator.verify === 'function') {
-      const res: any = authenticator.verify({ token: cleanCode, secret });
-      isValid = res === true || (res && res.valid === true);
-    } else if (typeof authenticator.check === 'function') {
-      const res: any = authenticator.check(cleanCode, secret);
-      isValid = res === true || (res && res.valid === true);
-    }
+    const res = await otplib.verify({
+      token: cleanCode,
+      secret,
+      epochTolerance: 60
+    });
+    isValid = res === true || (res && res.valid === true);
   } catch (err: any) {
     console.error('[2FA] Enable verification error:', err.message);
     isValid = false;
