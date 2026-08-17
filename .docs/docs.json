@@ -1,0 +1,18 @@
+{
+  "Introduction": "introduction.md",
+  "Setup Guide": "setup-guide.md",
+  "Architecture": {
+    "Overview & System Flow": "architecture/overview.md",
+    "Topology Star Graph & Physics": "architecture/topology-graph.md",
+    "SSH Key Management & Terminal": "architecture/ssh-management.md",
+    "Daemon Agent Subsystem": "architecture/daemon-subsystem.md"
+  },
+  "API Reference": {
+    "Authentication": "api/authentication.md",
+    "Machines & Nodes": "api/machines.md",
+    "Infrastructure & Topology": "api/infrastructure.md",
+    "SSH Key Management": "api/ssh-keys.md",
+    "WebSockets": "api/websockets.md"
+  },
+  "Security & Testing": "security-testing.md"
+}
