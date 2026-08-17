@@ -111,6 +111,7 @@ const props = defineProps<{
   nodeServices: Record<string, any[]>
   links: any[]
   selectedNodeId?: string | null
+  disabledNodes?: string[]
 }>()
 
 const emit = defineEmits(['select-node', 'open-add-device'])
@@ -181,8 +182,9 @@ const initBgStars = (width: number, height: number) => {
   }
 }
 
-// Build Graph from Props with generous radial spacing
+// Build Graph from Props with generous radial spacing & disabled node exclusion
 const buildGraphData = () => {
+  const disabledSet = new Set(props.disabledNodes || [])
   const existingPosMap = new Map<string, { x: number; y: number }>()
   for (const n of graphNodes.value) {
     existingPosMap.set(n.id, { x: n.x, y: n.y })
@@ -191,8 +193,10 @@ const buildGraphData = () => {
   const newNodes: GraphNode[] = []
   const newLinks: GraphLink[] = []
 
-  // 1. Add Router / Infrastructure Devices
+  // 1. Add Router / Infrastructure Devices (exclude disabled)
   for (const dev of props.devices || []) {
+    if (dev.disabledInGraph || disabledSet.has(dev.id)) continue
+
     const existing = existingPosMap.get(dev.id)
     const angle = Math.random() * Math.PI * 2
     const dist = 140 + Math.random() * 80
@@ -212,8 +216,10 @@ const buildGraphData = () => {
     })
   }
 
-  // 2. Add ControlCenter Machines
+  // 2. Add ControlCenter Machines (exclude disabled)
   for (const m of props.machines || []) {
+    if (m.disabledInGraph || disabledSet.has(m.id)) continue
+
     const existing = existingPosMap.get(m.id)
     const angle = Math.random() * Math.PI * 2
     const dist = 240 + Math.random() * 100
@@ -752,6 +758,21 @@ const zoomOut = () => {
 const resetView = () => {
   transform = { x: 0, y: 0, k: 1 }
 }
+
+const focusNode = (nodeId: string) => {
+  const target = graphNodes.value.find(n => n.id === nodeId)
+  if (!target || !canvasRef.value) return
+  // Center camera on target node
+  transform.x = -target.x * transform.k
+  transform.y = -target.y * transform.k
+}
+
+defineExpose({
+  focusNode,
+  resetView,
+  zoomIn,
+  zoomOut
+})
 
 const togglePhysics = () => {
   isPhysicsRunning.value = !isPhysicsRunning.value

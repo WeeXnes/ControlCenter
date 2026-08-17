@@ -1,30 +1,63 @@
 <template>
-  <div class="h-[calc(100vh-140px)] w-full rounded-xl overflow-hidden border border-base-content/10 bg-base-300/30 relative">
-    <!-- Main Interactive Star Graph Canvas (Full Size) -->
-    <div class="w-full h-full relative">
-      <InfrastructureGraph
-        :machines="machines"
-        :devices="devices"
-        :nodeServices="nodeServices"
-        :links="links"
-        :selectedNodeId="selectedNode?.id"
-        @select-node="handleSelectNode"
-        @open-add-device="openAddDeviceModal"
-      />
+  <div class="space-y-6 pb-12">
+    <!-- Star Graph Canvas Section -->
+    <div 
+      class="w-full rounded-2xl overflow-hidden border border-base-content/10 bg-base-300/30 relative transition-all duration-300 shadow-xl"
+      :class="isFullscreen ? 'fixed inset-4 z-50 rounded-xl' : 'h-[560px]'"
+    >
+      <!-- Canvas Header Control Bar (Fullscreen toggle) -->
+      <div class="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-base-200/80 backdrop-blur-md p-1 rounded-xl border border-base-content/10 shadow-sm">
+        <button 
+          @click="isFullscreen = !isFullscreen" 
+          class="btn btn-ghost btn-xs btn-square rounded-lg text-base-content/70 hover:text-primary"
+          :title="isFullscreen ? 'Exit Fullscreen' : 'Expand Fullscreen'"
+        >
+          <Icon :name="isFullscreen ? 'material-symbols:fullscreen-exit-rounded' : 'material-symbols:fullscreen-rounded'" size="16" />
+        </button>
+      </div>
+
+      <!-- Main Interactive Star Graph Canvas -->
+      <div class="w-full h-full relative">
+        <InfrastructureGraph
+          ref="graphRef"
+          :machines="machines"
+          :devices="devices"
+          :nodeServices="nodeServices"
+          :links="links"
+          :selectedNodeId="selectedNode?.id"
+          :disabledNodes="disabledNodes"
+          @select-node="handleSelectNode"
+          @open-add-device="openAddDeviceModal"
+        />
+      </div>
+
+      <!-- Right-Hand Floating Inspector Drawer (Overlay) -->
+      <Transition name="drawer">
+        <InfrastructureDrawer 
+          v-if="selectedNode"
+          :node="selectedNode"
+          :servicesMap="nodeServices"
+          class="absolute right-0 top-0 bottom-0 z-30 shadow-2xl"
+          @close="selectedNode = null"
+          @edit-device="openEditDeviceModal"
+          @refresh-graph="fetchTopologyData"
+        />
+      </Transition>
     </div>
 
-    <!-- Right-Hand Floating Inspector Drawer (Overlay) -->
-    <Transition name="drawer">
-      <InfrastructureDrawer 
-        v-if="selectedNode"
-        :node="selectedNode"
-        :servicesMap="nodeServices"
-        class="absolute right-0 top-0 bottom-0 z-30 shadow-2xl"
-        @close="selectedNode = null"
-        @edit-device="openEditDeviceModal"
-        @refresh-graph="fetchTopologyData"
-      />
-    </Transition>
+    <!-- Device & Network Inventory List Below Canvas -->
+    <InfrastructureDeviceList
+      v-if="!isFullscreen"
+      :machines="machines"
+      :devices="devices"
+      :nodeServices="nodeServices"
+      :selectedNodeId="selectedNode?.id"
+      @select-node="handleSelectNode"
+      @focus-node="handleFocusNode"
+      @add-device="openAddDeviceModal"
+      @edit-device="openEditDeviceModal"
+      @refresh-graph="fetchTopologyData"
+    />
 
     <!-- Device Creation / Edit Modal -->
     <InfrastructureDeviceModal 
@@ -39,13 +72,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 
+const graphRef = ref<any>(null)
 const machines = ref<any[]>([])
 const devices = ref<any[]>([])
 const nodeServices = ref<Record<string, any[]>>({})
 const links = ref<any[]>([])
+const disabledNodes = ref<string[]>([])
 const selectedNode = ref<any | null>(null)
 const deviceModalOpen = ref(false)
 const editingDevice = ref<any | null>(null)
+const isFullscreen = ref(false)
 
 let pollTimer: any = null
 
@@ -56,6 +92,7 @@ const fetchTopologyData = async () => {
     devices.value = data.devices || []
     nodeServices.value = data.nodeServices || {}
     links.value = data.links || []
+    disabledNodes.value = data.disabledNodes || []
 
     // Keep selected node state in sync if it's currently open
     if (selectedNode.value) {
@@ -74,6 +111,15 @@ const fetchTopologyData = async () => {
 
 const handleSelectNode = (node: any) => {
   selectedNode.value = node
+}
+
+const handleFocusNode = (node: any) => {
+  selectedNode.value = node
+  if (graphRef.value?.focusNode) {
+    graphRef.value.focusNode(node.id)
+  }
+  // Scroll to graph canvas if needed
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 const openAddDeviceModal = () => {

@@ -51,6 +51,15 @@ describe('Infrastructure API Security - Unauthenticated Access Blocked', () => {
     });
     expect(res.status).toBe(401);
   });
+
+  it('POST /api/infrastructure/toggle → 401 without auth', async () => {
+    const res = await fetch(`${BASE_URL}/api/infrastructure/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: 'node-1', disabled: true }),
+    });
+    expect(res.status).toBe(401);
+  });
 });
 
 describe('CIDR Subnet Matcher Logic Unit Tests', () => {

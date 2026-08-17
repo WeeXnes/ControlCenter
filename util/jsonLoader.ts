@@ -19,7 +19,8 @@ export function loadJsonFile() {
         devices: Array.isArray(parsed.infrastructure?.devices) ? parsed.infrastructure.devices : [],
         nodeServices: parsed.infrastructure?.nodeServices && typeof parsed.infrastructure.nodeServices === 'object' ? parsed.infrastructure.nodeServices : {},
         customLinks: Array.isArray(parsed.infrastructure?.customLinks) ? parsed.infrastructure.customLinks : [],
-        nodePositions: parsed.infrastructure?.nodePositions && typeof parsed.infrastructure.nodePositions === 'object' ? parsed.infrastructure.nodePositions : {}
+        nodePositions: parsed.infrastructure?.nodePositions && typeof parsed.infrastructure.nodePositions === 'object' ? parsed.infrastructure.nodePositions : {},
+        disabledNodes: Array.isArray(parsed.infrastructure?.disabledNodes) ? parsed.infrastructure.disabledNodes : []
       }
     };
 
@@ -55,7 +56,8 @@ function createEmptySettingsIfNotExists() {
           devices: [],
           nodeServices: {},
           customLinks: [],
-          nodePositions: {}
+          nodePositions: {},
+          disabledNodes: []
         }
       };
       fs.writeFileSync(environment.files.settings, JSON.stringify(emptySettings, null, 2), 'utf-8');

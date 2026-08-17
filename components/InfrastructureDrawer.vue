@@ -102,6 +102,29 @@
         </div>
       </div>
 
+      <!-- Canvas Star Graph Visibility Card -->
+      <div v-if="node.type !== 'service'" class="p-2.5 rounded-lg bg-base-100/70 border border-base-content/5 flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+          <Icon 
+            :name="node.disabledInGraph ? 'material-symbols:visibility-off-outline-rounded' : 'material-symbols:visibility-outline-rounded'" 
+            size="16" 
+            :class="node.disabledInGraph ? 'text-base-content/40' : 'text-primary'" 
+          />
+          <div>
+            <div class="text-[11px] font-bold text-base-content">Topology Star Graph</div>
+            <div class="text-[10px] text-base-content/50">
+              {{ node.disabledInGraph ? 'Hidden from graph' : 'Rendered in graph' }}
+            </div>
+          </div>
+        </div>
+        <input 
+          type="checkbox" 
+          class="toggle toggle-xs toggle-primary" 
+          :checked="!node.disabledInGraph"
+          @change="toggleGraphVisibility"
+        />
+      </div>
+
       <!-- Attached Services Section -->
       <div v-if="node.type !== 'service'" class="space-y-3 pt-1">
         <div class="flex items-center justify-between">
@@ -354,6 +377,24 @@ const getReachabilityDotClass = (srv: any) => {
 
 const openSshTerminal = () => {
   router.push({ path: '/', query: { machine: props.node.id, tab: 'terminal' } })
+}
+
+const toggleGraphVisibility = async () => {
+  const newDisabled = !props.node.disabledInGraph
+  props.node.disabledInGraph = newDisabled
+  try {
+    await $fetch('/api/infrastructure/toggle', {
+      method: 'POST',
+      body: {
+        nodeId: props.node.id,
+        disabled: newDisabled
+      }
+    })
+    emit('refresh-graph')
+  } catch (err: any) {
+    props.node.disabledInGraph = !newDisabled
+    alert(`Failed to toggle graph visibility: ${err.message}`)
+  }
 }
 
 const openInBrowser = (srv: any) => {

@@ -17,14 +17,20 @@ export default defineEventHandler(async (event) => {
       devices: [],
       nodeServices: {},
       customLinks: [],
-      nodePositions: {}
+      nodePositions: {},
+      disabledNodes: []
     };
   }
 
   const infra = environment.settings.infrastructure;
+  if (!Array.isArray(infra.disabledNodes)) {
+    infra.disabledNodes = [];
+  }
 
   // GET: Compute full topology graph nodes and links
   if (method === 'GET') {
+    const disabledSet = new Set(infra.disabledNodes || []);
+
     const machines = (environment.settings.machines || []).map((m) => {
       const isOnline = daemonManager.isOnline(m.id);
       const telemetry = daemonManager.getTelemetry(m.id);
@@ -46,6 +52,7 @@ export default defineEventHandler(async (event) => {
         type: 'machine' as const,
         status: m.status || 'approved',
         online: isOnline,
+        disabledInGraph: disabledSet.has(m.id),
         telemetry: {
           os: telemetry?.os || '',
           cpuUsagePercent: telemetry?.cpuUsagePercent ?? 0,
@@ -59,27 +66,30 @@ export default defineEventHandler(async (event) => {
 
     const devices = (infra.devices || []).map((d) => ({
       ...d,
+      disabledInGraph: disabledSet.has(d.id) || !!d.disabledInGraph,
       services: infra.nodeServices[d.id] || d.services || []
     }));
 
     // Compute automatic multi-homed links:
-    // 1. Connect machines to ALL matching Router/Subnet CIDR devices based on all their IPs
+    // 1. Connect active machines to ALL matching Router/Subnet CIDR devices
     // 2. Connect sub-devices (e.g. switches/routers) to matching upstream subnets
     // 3. Connect services to their parent node
     // 4. Include custom defined links
     const links: Array<{ source: string; target: string; type: 'cidr' | 'service' | 'custom'; label?: string }> = [];
 
-    // Multi-IP CIDR matching for machines
+    // Multi-IP CIDR matching for machines (only if both nodes are enabled in graph)
     for (const machine of machines) {
+      if (machine.disabledInGraph) continue;
+
       const machineIps = machine.ipAddresses && machine.ipAddresses.length > 0
         ? machine.ipAddresses
         : (machine.ip ? [machine.ip] : []);
 
       for (const dev of devices) {
-        if (!dev.cidr) continue;
+        if (dev.disabledInGraph || !dev.cidr) continue;
 
         // Check if ANY of the machine's IPs matches this device's subnet CIDR
-        const matchingIp = machineIps.find((ip) => isIpInCidr(ip, dev.cidr));
+        const matchingIp = machineIps.find((ip) => isIpInCidr(ip, dev.cidr!));
         if (matchingIp) {
           links.push({
             source: dev.id,
@@ -93,9 +103,9 @@ export default defineEventHandler(async (event) => {
 
     // Inter-device CIDR matching (e.g. switch or nested router connected to parent subnet)
     for (const dev of devices) {
-      if (!dev.ip) continue;
+      if (dev.disabledInGraph || !dev.ip) continue;
       for (const parentDev of devices) {
-        if (parentDev.id === dev.id || !parentDev.cidr) continue;
+        if (parentDev.disabledInGraph || parentDev.id === dev.id || !parentDev.cidr) continue;
         if (isIpInCidr(dev.ip, parentDev.cidr)) {
           // Avoid duplicate reciprocal links
           const alreadyLinked = links.some(
@@ -113,8 +123,9 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Service Links (attached to machines or devices)
+    // Service Links (attached to active machines or devices)
     for (const [nodeId, sList] of Object.entries(infra.nodeServices)) {
+      if (disabledSet.has(nodeId)) continue;
       for (const s of sList) {
         links.push({
           source: nodeId,
@@ -124,10 +135,10 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Custom links
+    // Custom links (only if neither end is disabled)
     if (Array.isArray(infra.customLinks)) {
       for (const cl of infra.customLinks) {
-        if (cl.source && cl.target) {
+        if (cl.source && cl.target && !disabledSet.has(cl.source) && !disabledSet.has(cl.target)) {
           links.push({
             source: cl.source,
             target: cl.target,
@@ -143,14 +154,15 @@ export default defineEventHandler(async (event) => {
       devices,
       nodeServices: infra.nodeServices,
       links,
-      positions: infra.nodePositions || {}
+      positions: infra.nodePositions || {},
+      disabledNodes: infra.disabledNodes || []
     };
   }
 
   // POST: Create a new custom infrastructure device
   if (method === 'POST') {
     const body = await readBody(event);
-    const { name, type, ip, cidr, description, icon } = body;
+    const { name, type, ip, cidr, description, icon, disabledInGraph } = body;
 
     if (!name || !type) {
       throw createError({ statusCode: 400, statusMessage: 'Name and type are required.' });
@@ -163,7 +175,8 @@ export default defineEventHandler(async (event) => {
       ip: ip ? String(ip).trim() : undefined,
       cidr: cidr ? String(cidr).trim() : undefined,
       description: description ? String(description).trim() : undefined,
-      icon: icon || undefined
+      icon: icon || undefined,
+      disabledInGraph: !!disabledInGraph
     };
 
     if (!infra.devices) {
@@ -171,6 +184,9 @@ export default defineEventHandler(async (event) => {
     }
 
     infra.devices.push(newDevice);
+    if (newDevice.disabledInGraph && !infra.disabledNodes.includes(newDevice.id)) {
+      infra.disabledNodes.push(newDevice.id);
+    }
     saveJsonFile();
 
     return { success: true, device: newDevice };
@@ -179,7 +195,7 @@ export default defineEventHandler(async (event) => {
   // PUT: Update an existing custom device
   if (method === 'PUT') {
     const body = await readBody(event);
-    const { id, name, type, ip, cidr, description, icon } = body;
+    const { id, name, type, ip, cidr, description, icon, disabledInGraph } = body;
 
     if (!id) {
       throw createError({ statusCode: 400, statusMessage: 'Device ID is required for update.' });
@@ -196,6 +212,14 @@ export default defineEventHandler(async (event) => {
     if (cidr !== undefined) device.cidr = cidr ? String(cidr).trim() : undefined;
     if (description !== undefined) device.description = description ? String(description).trim() : undefined;
     if (icon !== undefined) device.icon = icon || undefined;
+    if (disabledInGraph !== undefined) {
+      device.disabledInGraph = !!disabledInGraph;
+      if (device.disabledInGraph && !infra.disabledNodes.includes(id)) {
+        infra.disabledNodes.push(id);
+      } else if (!device.disabledInGraph && infra.disabledNodes.includes(id)) {
+        infra.disabledNodes = infra.disabledNodes.filter((dId) => dId !== id);
+      }
+    }
 
     saveJsonFile();
     return { success: true, device };
@@ -212,6 +236,9 @@ export default defineEventHandler(async (event) => {
     }
 
     infra.devices = (infra.devices || []).filter((d) => d.id !== id);
+    if (infra.disabledNodes) {
+      infra.disabledNodes = infra.disabledNodes.filter((dId) => dId !== id);
+    }
 
     // Clean up any attached services
     if (infra.nodeServices[id]) {

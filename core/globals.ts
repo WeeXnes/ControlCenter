@@ -23,6 +23,7 @@ export interface InfrastructureDevice {
   icon?: string;
   services?: NodeService[];
   customPosition?: { x: number; y: number };
+  disabledInGraph?: boolean;
 }
 
 export interface InfrastructureSettings {
@@ -30,6 +31,7 @@ export interface InfrastructureSettings {
   nodeServices: Record<string, NodeService[]>; // machineId -> NodeService[]
   customLinks?: Array<{ source: string; target: string; label?: string }>;
   nodePositions?: Record<string, { x: number; y: number }>;
+  disabledNodes?: string[]; // IDs of nodes (machines/devices) disabled in graph
 }
 
 export interface Machine {
