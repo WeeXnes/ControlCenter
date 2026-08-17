@@ -161,15 +161,18 @@
                 <span 
                   v-for="srv in getServicesForItem(item)" 
                   :key="srv.id"
-                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-100 border border-base-content/10 text-[10px] font-mono"
-                  :title="srv.publicUrl || `${srv.protocol}://:${srv.port}`"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-100 border border-base-content/10 text-[10px] font-mono shadow-xs"
+                  :title="`${srv.name} @:${srv.port} | Status: ${srv.status || 'unknown'} | Interval: ${srv.probeIntervalSeconds || 15}s`"
                 >
                   <span 
-                    class="w-1.5 h-1.5 rounded-full"
+                    class="w-1.5 h-1.5 rounded-full flex-shrink-0"
                     :class="srv.status === 'online' ? 'bg-success' : (srv.status === 'offline' ? 'bg-error' : 'bg-warning')"
                   ></span>
-                  <span class="font-semibold text-base-content/90">{{ srv.name }}</span>
+                  <span class="font-semibold text-base-content/90 truncate max-w-[80px]">{{ srv.name }}</span>
                   <span class="text-primary font-bold">@:{{ srv.port }}</span>
+                  <span v-if="srv.latencyMs !== undefined && srv.latencyMs >= 0" class="text-success font-semibold text-[9px]">
+                    {{ srv.latencyMs }}ms
+                  </span>
                 </span>
               </div>
               <span v-else class="text-base-content/30 text-[10px] italic">No services</span>

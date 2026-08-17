@@ -1,6 +1,7 @@
 import { loadJsonFile } from '~/util/jsonLoader';
 import { ensureSelfSignedCert } from '~/server/util/certManager';
 import { getDefaultKeyName, generateSshKeyPair } from '~/server/util/sshKeyManager';
+import { startProbeScheduler } from '~/server/util/probeScheduler';
 
 export default defineNitroPlugin(() => {
   console.log('[ControlCenter] Initializing settings storage...');
@@ -22,4 +23,7 @@ export default defineNitroPlugin(() => {
   } else {
     console.log(`[ControlCenter] Default SSH Key ready: ${defaultKey}`);
   }
+
+  // Start background periodic service reachability prober
+  startProbeScheduler();
 });

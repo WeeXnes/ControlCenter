@@ -190,6 +190,26 @@
             />
           </div>
 
+          <!-- Auto-Probe Interval Selector -->
+          <div class="form-control">
+            <div class="flex items-center justify-between text-[10px] text-base-content/60 font-semibold mb-1">
+              <span>Auto-Probe Refresh Rate</span>
+              <span class="font-mono text-primary">{{ newService.probeIntervalSeconds === 0 ? 'Manual' : `${newService.probeIntervalSeconds}s` }}</span>
+            </div>
+            <select 
+              v-model="newService.probeIntervalSeconds" 
+              class="select select-xs rounded-md bg-base-200/80 border-base-content/10 focus:border-primary text-xs"
+            >
+              <option :value="5">⚡ Every 5 seconds (Fast)</option>
+              <option :value="10">⚡ Every 10 seconds</option>
+              <option :value="15">🔄 Every 15 seconds (Default)</option>
+              <option :value="30">🔄 Every 30 seconds</option>
+              <option :value="60">⏱️ Every 1 minute</option>
+              <option :value="300">⏱️ Every 5 minutes</option>
+              <option :value="0">🚫 Manual Probe Only</option>
+            </select>
+          </div>
+
           <div class="flex justify-end gap-1.5 pt-1">
             <button type="submit" class="btn btn-primary btn-xs rounded-md font-semibold gap-1" :disabled="addingService">
               <span v-if="addingService" class="loading loading-spinner loading-xs"></span>
@@ -226,6 +246,11 @@
               </div>
 
               <div class="flex items-center gap-1">
+                <!-- Probe interval indicator badge -->
+                <span class="badge badge-xs badge-ghost text-[9px] font-mono text-base-content/60" :title="`Auto-refreshes every ${srv.probeIntervalSeconds || 15}s`">
+                  {{ formatIntervalLabel(srv.probeIntervalSeconds) }}
+                </span>
+
                 <span class="badge badge-xs font-mono font-bold uppercase" :class="getProtocolBadgeClass(srv.protocol)">
                   {{ srv.protocol }}
                 </span>
@@ -250,15 +275,21 @@
 
             <!-- Reachability Stats & Action Bar -->
             <div class="flex items-center justify-between text-[10px] pt-1 border-t border-base-content/5 text-base-content/60">
-              <span v-if="srv.latencyMs !== undefined && srv.latencyMs >= 0" class="font-mono text-success">
-                {{ srv.latencyMs }}ms latency
-              </span>
-              <span v-else-if="srv.status === 'offline'" class="font-mono text-error">
-                Port unreachable
-              </span>
-              <span v-else class="text-base-content/40">
-                Not tested
-              </span>
+              <div class="flex items-center gap-1.5">
+                <span v-if="srv.latencyMs !== undefined && srv.latencyMs >= 0" class="font-mono font-bold" :class="getLatencyColor(srv.latencyMs)">
+                  {{ srv.latencyMs }}ms
+                </span>
+                <span v-else-if="srv.status === 'offline'" class="font-mono text-error font-semibold">
+                  Unreachable
+                </span>
+                <span v-else class="text-base-content/40">
+                  Not tested
+                </span>
+
+                <span v-if="srv.lastChecked" class="text-base-content/40 text-[9px]">
+                  • {{ formatRelativeTime(srv.lastChecked) }}
+                </span>
+              </div>
 
               <div class="flex items-center gap-1.5">
                 <button 
@@ -277,7 +308,7 @@
                 >
                   <span v-if="probingId === srv.id" class="loading loading-spinner loading-xs"></span>
                   <Icon v-else name="material-symbols:network-ping-rounded" size="12" />
-                  Test Probe
+                  Probe
                 </button>
               </div>
             </div>
@@ -328,7 +359,8 @@ const newService = reactive({
   port: 80,
   protocol: 'http',
   path: '/',
-  publicUrl: ''
+  publicUrl: '',
+  probeIntervalSeconds: 15
 })
 
 const services = computed(() => {
@@ -373,6 +405,29 @@ const getReachabilityDotClass = (srv: any) => {
   if (srv.status === 'online') return 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.8)]'
   if (srv.status === 'offline') return 'bg-error shadow-[0_0_8px_rgba(239,68,68,0.8)]'
   return 'bg-base-content/30'
+}
+
+const getLatencyColor = (latencyMs: number) => {
+  if (latencyMs < 30) return 'text-success'
+  if (latencyMs < 100) return 'text-primary'
+  if (latencyMs < 250) return 'text-warning'
+  return 'text-error'
+}
+
+const formatIntervalLabel = (sec?: number) => {
+  if (sec === 0) return 'Manual'
+  if (!sec || sec === 15) return '⚡ 15s'
+  if (sec < 60) return `⚡ ${sec}s`
+  return `⏱️ ${Math.floor(sec / 60)}m`
+}
+
+const formatRelativeTime = (isoString?: string) => {
+  if (!isoString) return ''
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000))
+  if (diffSec < 5) return 'just now'
+  if (diffSec < 60) return `${diffSec}s ago`
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
+  return `${Math.floor(diffSec / 3600)}h ago`
 }
 
 const openSshTerminal = () => {
@@ -424,6 +479,7 @@ const handleAddService = async () => {
     newService.name = ''
     newService.port = 80
     newService.publicUrl = ''
+    newService.probeIntervalSeconds = 15
     showAddServiceForm.value = false
     emit('refresh-graph')
   } catch (err: any) {
@@ -462,6 +518,7 @@ const testProbe = async (srv: any) => {
     })
     srv.status = res.reachable ? 'online' : 'offline'
     srv.latencyMs = res.latencyMs
+    srv.lastChecked = new Date().toISOString()
   } catch {
     srv.status = 'offline'
     srv.latencyMs = -1

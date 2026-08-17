@@ -8,6 +8,7 @@ export interface NodeService {
   protocol: 'http' | 'https' | 'tcp' | 'udp' | 'ssh' | 'custom';
   path?: string; // e.g. "/" or "/api/health"
   publicUrl?: string; // e.g. "https://plex.example.com" or "https://dashboard.mycloud.org"
+  probeIntervalSeconds?: number; // e.g. 5, 10, 30, 60 (0 = manual only, default: 15)
   status?: 'online' | 'offline' | 'checking' | 'unknown';
   lastChecked?: string;
   latencyMs?: number;

@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   // POST: Add or update a service
   if (method === 'POST') {
     const body = await readBody(event);
-    const { nodeId, id, name, port, protocol, path, publicUrl } = body;
+    const { nodeId, id, name, port, protocol, path, publicUrl, probeIntervalSeconds } = body;
 
     if (!nodeId || !name || !port) {
       throw createError({ statusCode: 400, statusMessage: 'nodeId, service name, and port are required.' });
@@ -61,6 +61,7 @@ export default defineEventHandler(async (event) => {
       protocol: protocol || 'http',
       path: path ? String(path).trim() : undefined,
       publicUrl: publicUrl ? String(publicUrl).trim() : undefined,
+      probeIntervalSeconds: probeIntervalSeconds !== undefined ? Number(probeIntervalSeconds) : 15,
       status: initialStatus,
       latencyMs: initialLatency,
       lastChecked: new Date().toISOString()
