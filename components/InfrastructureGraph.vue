@@ -396,6 +396,11 @@ const tickPhysics = () => {
   }
 }
 
+// Physics Timing & Framerate Normalization
+let lastTime = 0
+let physicsAccumulator = 0
+const FIXED_PHYSICS_DT = 1 / 60 // 60Hz reference simulation step (16.67ms)
+
 // Particle flow animation timer
 let particleTime = 0
 
@@ -440,13 +445,22 @@ const drawTextPill = (ctx: CanvasRenderingContext2D, text1: string, text2: strin
   ctx.restore()
 }
 
-// Main Canvas Render Loop
-const render = () => {
+// Main Canvas Render Loop with Delta-Time Normalization
+const render = (timestamp?: number) => {
   const canvas = canvasRef.value
   if (!canvas) return
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
+
+  const currentTime = typeof timestamp === 'number' ? timestamp : performance.now()
+  if (!lastTime) lastTime = currentTime
+  let dt = (currentTime - lastTime) / 1000
+  lastTime = currentTime
+
+  // Guard against extreme delta spikes (e.g. background tab or frame hitch)
+  if (dt > 0.1) dt = 0.1
+  if (dt < 0) dt = 0
 
   const width = canvas.width
   const height = canvas.height
@@ -460,8 +474,8 @@ const render = () => {
   ctx.translate(width / 2 + transform.x, height / 2 + transform.y)
   ctx.scale(transform.k, transform.k)
 
-  // 1. Draw Starfield Background
-  particleTime += 0.02
+  // 1. Draw Starfield Background (Framerate-independent: 1.2 units / sec)
+  particleTime += dt * 1.2
   for (const star of bgStars) {
     const pulseAlpha = star.alpha + Math.sin(particleTime * star.pulseSpeed * 50) * 0.15
     ctx.beginPath()
@@ -637,8 +651,19 @@ const render = () => {
 
   ctx.restore()
 
-  // Physics update & next frame
-  tickPhysics()
+  // 4. Fixed-timestep physics simulation integration (exact 60Hz reference regardless of display refresh rate)
+  if (isPhysicsRunning.value) {
+    physicsAccumulator += dt
+    if (physicsAccumulator > 0.1) physicsAccumulator = 0.1
+
+    while (physicsAccumulator >= FIXED_PHYSICS_DT) {
+      tickPhysics()
+      physicsAccumulator -= FIXED_PHYSICS_DT
+    }
+  } else {
+    physicsAccumulator = 0
+  }
+
   animFrameId = requestAnimationFrame(render)
 }
 
@@ -776,6 +801,7 @@ defineExpose({
 
 const togglePhysics = () => {
   isPhysicsRunning.value = !isPhysicsRunning.value
+  physicsAccumulator = 0
 }
 
 // Canvas Resize Handler with ResizeObserver
@@ -810,6 +836,8 @@ onMounted(() => {
   }
 
   buildGraphData()
+  lastTime = performance.now()
+  physicsAccumulator = 0
   animFrameId = requestAnimationFrame(render)
 })
 
@@ -821,6 +849,9 @@ onBeforeUnmount(() => {
   }
   if (animFrameId) {
     cancelAnimationFrame(animFrameId)
+    animFrameId = null
   }
+  lastTime = 0
+  physicsAccumulator = 0
 })
 </script>
