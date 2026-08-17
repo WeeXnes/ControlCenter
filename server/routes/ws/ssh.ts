@@ -1,13 +1,10 @@
-import { Client } from 'ssh2';
 import jwt from 'jsonwebtoken';
-import fs from 'fs';
-import path from 'path';
 import { environment } from '~/core/globals';
 import { loadJsonFile } from '~/util/jsonLoader';
+import { sshSessionManager } from '~/server/util/sshSessionManager';
 
 export default defineWebSocketHandler({
   open(peer) {
-    // crossws exposes the upgrade request URL via peer.request.url (not peer.url)
     let rawUrl = (peer as any).request?.url
       || (peer as any)._internal?.nodeReq?.url
       || '';
@@ -22,19 +19,15 @@ export default defineWebSocketHandler({
     }
 
     // --- AUTHENTICATION CHECK ---
-    // Try query param first (API/testing), then cookie from upgrade request headers
     let token = url.searchParams.get('token');
 
     if (!token) {
-      // Parse token from cookie header on the WebSocket upgrade request
-      // crossws peer.request.headers is a Web API Headers object (use .get()),
-      // fall back to the underlying node IncomingMessage headers (plain object)
       const req = (peer as any).request;
       const nodeReq = (peer as any)._internal?.nodeReq;
       const cookieHeader =
-        req?.headers?.get?.('cookie')           // crossws NodeReqProxy Headers object
-        || nodeReq?.headers?.cookie              // raw node IncomingMessage
-        || (req?.headers as any)?.cookie         // plain object fallback
+        req?.headers?.get?.('cookie')
+        || nodeReq?.headers?.cookie
+        || (req?.headers as any)?.cookie
         || '';
       const cookieMatch = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
       if (cookieMatch) {
@@ -49,7 +42,12 @@ export default defineWebSocketHandler({
     }
 
     try {
-      jwt.verify(token, environment.jwt_globals.secret);
+      const decoded = jwt.verify(token, environment.jwt_globals.secret) as any;
+      if (decoded && decoded.isPartial) {
+        peer.send(JSON.stringify({ type: 'error', data: '\r\n\x1b[31m[ControlCenter] Error: Incomplete authentication. 2FA verification required.\x1b[0m\r\n' }));
+        peer.close();
+        return;
+      }
     } catch {
       peer.send(JSON.stringify({ type: 'error', data: '\r\n\x1b[31m[ControlCenter] Error: Invalid or expired authentication token.\x1b[0m\r\n' }));
       peer.close();
@@ -72,132 +70,57 @@ export default defineWebSocketHandler({
       return;
     }
 
-    const ssh = new Client();
-    (peer as any)._ssh = ssh;
+    const cols = Number(url.searchParams.get('cols')) || Number((peer as any)._pendingCols) || 80;
+    const rows = Number(url.searchParams.get('rows')) || Number((peer as any)._pendingRows) || 24;
 
-    const host = machine.ip || '127.0.0.1';
-    const port = machine.sshPort || 22;
-    const user = machine.sshUser || 'root';
+    let session = sshSessionManager.getSession(machineId);
 
-    peer.send(JSON.stringify({ type: 'status', data: `\x1b[33mConnecting to ${machine.name} (${user}@${host}:${port})...\x1b[0m\r\n` }));
-
-    ssh.on('ready', () => {
-      peer.send(JSON.stringify({ type: 'status', data: `\x1b[32mSSH Connection Established to ${machine.name}.\x1b[0m\r\n\r\n` }));
-
-      const initialCols = Number((peer as any)._pendingCols) || 80;
-      const initialRows = Number((peer as any)._pendingRows) || 24;
-
-      ssh.shell(
-        {
-          term: 'xterm-256color',
-          cols: initialCols,
-          rows: initialRows
-        },
-        (err, stream) => {
-          if (err) {
-            peer.send(JSON.stringify({ type: 'error', data: `\r\n\x1b[31mSSH Shell creation failed: ${err.message}\x1b[0m\r\n` }));
-            peer.close();
-            return;
-          }
-
-          (peer as any)._sshStream = stream;
-
-          // Apply client dimensions to PTY if resize was received before shell ready
-          if ((peer as any)._pendingCols && (peer as any)._pendingRows) {
-            const cols = (peer as any)._pendingCols;
-            const rows = (peer as any)._pendingRows;
-            try {
-              stream.setWindow(rows, cols, rows * 17, cols * 9);
-            } catch {}
-          }
-
-          stream.on('data', (data: Buffer) => {
-            peer.send(JSON.stringify({ type: 'output', data: data.toString('utf-8') }));
-          });
-
-          stream.on('close', () => {
-            peer.send(JSON.stringify({ type: 'status', data: '\r\n\x1b[33m[ControlCenter] Connection closed by remote host.\x1b[0m\r\n' }));
-            peer.close();
-          });
-        }
-      );
-    });
-
-    ssh.on('error', (err: any) => {
-      peer.send(JSON.stringify({ type: 'error', data: `\r\n\x1b[31mSSH Error: ${err.message || err}\x1b[0m\r\n` }));
-      peer.close();
-    });
-
-    const connectConfig: any = {
-      host,
-      port,
-      username: user,
-      readyTimeout: 10000
-    };
-
-    if (machine.sshAuthType === 'key') {
-      let keyContent = '';
-      if (machine.sshKeyFile) {
-        const keyFileName = machine.sshKeyFile.trim();
-        if (!keyFileName.includes('/') && !keyFileName.includes('\\') && !keyFileName.includes('..')) {
-          const keyPath = path.join(environment.paths.sshKeys, keyFileName);
-          if (fs.existsSync(keyPath)) {
-            keyContent = fs.readFileSync(keyPath, 'utf8');
-          }
-        }
-      }
-      if (!keyContent && (machine as any).sshPrivateKey) {
-        keyContent = (machine as any).sshPrivateKey;
-      }
-      if (keyContent) {
-        connectConfig.privateKey = keyContent;
-      } else {
-        peer.send(JSON.stringify({ type: 'error', data: `\r\n\x1b[31m[ControlCenter] Error: SSH key file "${machine.sshKeyFile || 'unspecified'}" not found in ~/.ssh/ControlCenterKeys/\x1b[0m\r\n` }));
-        peer.close();
-        return;
-      }
-    } else if (machine.sshPassword) {
-      connectConfig.password = machine.sshPassword;
-    }
-
-    try {
-      ssh.connect(connectConfig);
-    } catch (e: any) {
-      peer.send(JSON.stringify({ type: 'error', data: `\r\n\x1b[31mFailed to initiate SSH connection: ${e.message}\x1b[0m\r\n` }));
-      peer.close();
+    if (session && session.status === 'connected') {
+      (peer as any)._session = session;
+      session.attachPeer(peer);
+      session.resize(cols, rows);
+    } else {
+      session = sshSessionManager.createSession(machine, cols, rows);
+      (peer as any)._session = session;
+      session.attachPeer(peer);
     }
   },
 
   message(peer, message) {
+    const session = (peer as any)._session;
     try {
       const payload = JSON.parse(message.text());
-      const stream = (peer as any)._sshStream;
 
-      if (payload.type === 'input' && stream) {
-        stream.write(payload.data);
+      if (payload.type === 'input' && session) {
+        session.writeInput(payload.data);
       } else if (payload.type === 'resize') {
         const cols = Number(payload.cols) || 80;
         const rows = Number(payload.rows) || 24;
         (peer as any)._pendingCols = cols;
         (peer as any)._pendingRows = rows;
-        if (stream) {
-          try {
-            stream.setWindow(rows, cols, rows * 17, cols * 9);
-          } catch {}
+        if (session) {
+          session.resize(cols, rows);
+        }
+      } else if (payload.type === 'reset' && session) {
+        // Force session reset
+        const machine = environment.settings.machines.find(m => m.id === session.machineId);
+        if (machine) {
+          const newSession = sshSessionManager.createSession(machine, session.cols, session.rows);
+          (peer as any)._session = newSession;
+          newSession.attachPeer(peer);
         }
       }
     } catch {
-      const stream = (peer as any)._sshStream;
-      if (stream) {
-        stream.write(message.text());
+      if (session) {
+        session.writeInput(message.text());
       }
     }
   },
 
   close(peer) {
-    const ssh = (peer as any)._ssh as Client;
-    if (ssh) {
-      ssh.end();
+    const session = (peer as any)._session;
+    if (session) {
+      session.detachPeer(peer);
     }
   }
 });

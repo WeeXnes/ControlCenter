@@ -111,6 +111,26 @@ describe('SSH WebSocket Security - No Authentication', () => {
     });
     expect(hasAuthError).toBe(true);
   });
+
+  it('WebSocket connection with partial 2FA token (isPartial: true) should be rejected', async () => {
+    // Generate a temporary partial token
+    const partialToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbiIsImlzUGFydGlhbCI6dHJ1ZSwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjIwMDAwMDAwMDB9.invalid';
+
+    const { messages } = await connectWebSocket(
+      `${WS_BASE_URL}/ws/ssh?machineId=${MACHINE_ID}&token=${partialToken}`
+    );
+
+    const hasAuthError = messages.some(msg => {
+      try {
+        const parsed = JSON.parse(msg);
+        return parsed.type === 'error' &&
+          (parsed.data.includes('Incomplete authentication') || parsed.data.includes('Invalid or expired') || parsed.data.includes('Authentication required'));
+      } catch {
+        return false;
+      }
+    });
+    expect(hasAuthError).toBe(true);
+  });
 });
 
 describe('SSH WebSocket Security - Missing Machine ID', () => {

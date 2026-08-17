@@ -40,6 +40,18 @@
           <Icon name="material-symbols:vpn-key-rounded" size="16" />
           <span>SSH Keys &amp; Auth</span>
         </button>
+
+        <button 
+          @click="activeTab = 'security'"
+          class="tab tab-sm flex-1 font-bold text-xs gap-1.5 transition-all"
+          :class="activeTab === 'security' ? 'tab-active bg-primary text-primary-content' : 'text-base-content/70 hover:text-base-content'"
+        >
+          <Icon name="material-symbols:shield-lock-outline-rounded" size="16" />
+          <span>Security &amp; 2FA</span>
+          <span v-if="twoFactorEnabled" class="badge badge-success badge-xs font-mono font-bold px-1.5 py-0.5 ml-1">
+            ON
+          </span>
+        </button>
       </div>
 
       <!-- Tab 1: Devices & Approvals -->
@@ -306,6 +318,185 @@
           </div>
         </form>
       </div>
+
+      <!-- Tab 3: Security & 2FA -->
+      <div v-if="activeTab === 'security'" class="space-y-4 text-xs font-medium">
+        <!-- 2FA Status Overview -->
+        <div class="p-3.5 rounded-lg border flex items-start gap-3 transition-all"
+             :class="twoFactorEnabled ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+               :class="twoFactorEnabled ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'">
+            <Icon :name="twoFactorEnabled ? 'material-symbols:verified-user-rounded' : 'material-symbols:gpp-maybe-rounded'" size="20" />
+          </div>
+          <div class="space-y-1 flex-1">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-sm text-base-content">
+                {{ twoFactorEnabled ? 'Two-Factor Authentication is Active & Enforced' : 'Two-Factor Authentication is Disabled' }}
+              </h4>
+              <span class="badge badge-xs font-bold font-mono px-2 py-0.5"
+                    :class="twoFactorEnabled ? 'badge-success' : 'badge-warning'">
+                {{ twoFactorEnabled ? 'ENFORCED' : 'OFF' }}
+              </span>
+            </div>
+            <p class="text-[11px] text-base-content/70 leading-relaxed">
+              {{ twoFactorEnabled
+                ? 'Your dashboard is protected by Time-based One-Time Password (TOTP) verification. Logins require both the admin password and a 6-digit code from your authenticator app.'
+                : 'Protect your ControlCenter dashboard with Google Authenticator, Authy, Apple Passwords, Bitwarden, or 1Password.' }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Section: 2FA is Disabled -> Setup Flow -->
+        <div v-if="!twoFactorEnabled" class="space-y-4">
+          <div v-if="!showSetupFlow" class="p-4 text-center rounded-lg bg-base-100/60 border border-base-content/10 space-y-3">
+            <p class="text-xs text-base-content/70 max-w-md mx-auto leading-relaxed">
+              Enable two-factor authentication to prevent unauthorized dashboard access even if your password is compromised.
+            </p>
+            <button 
+              @click="startSetup2fa" 
+              class="btn btn-primary btn-sm rounded-lg shadow font-semibold gap-1.5 text-xs"
+              :disabled="loading2fa"
+            >
+              <span v-if="loading2fa" class="loading loading-spinner loading-xs"></span>
+              <Icon v-else name="material-symbols:qr-code-scanner-rounded" size="16" />
+              Setup Two-Factor Authentication
+            </button>
+          </div>
+
+          <!-- Active Setup Flow Container -->
+          <div v-else class="p-4 rounded-lg bg-base-100 border border-primary/30 space-y-4 shadow-sm">
+            <div class="flex items-center justify-between border-b border-base-content/10 pb-2.5">
+              <span class="font-bold text-xs text-base-content">Scan QR Code or Enter Secret</span>
+              <button @click="showSetupFlow = false" class="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content">
+                Cancel Setup
+              </button>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+              <!-- QR Code Display -->
+              <div class="bg-white p-2 rounded-lg border border-base-content/10 flex-shrink-0 shadow">
+                <img v-if="qrCodeUrl" :src="qrCodeUrl" alt="TOTP QR Code" class="w-36 h-36" />
+                <div v-else class="w-36 h-36 flex items-center justify-center">
+                  <span class="loading loading-spinner loading-md text-primary"></span>
+                </div>
+              </div>
+
+              <!-- Manual Secret & Instructions -->
+              <div class="space-y-2 flex-1 w-full text-xs">
+                <p class="text-base-content/80 font-medium leading-relaxed">
+                  Scan this QR code with Google Authenticator, Authy, or Apple Passwords.
+                </p>
+                <div class="p-2 rounded bg-base-300/60 border border-base-content/5 space-y-1">
+                  <span class="text-[10px] uppercase font-bold text-base-content/50">Manual Base32 Key</span>
+                  <div class="flex items-center justify-between">
+                    <code class="font-mono text-xs font-bold text-primary select-all break-all">{{ totpSecret }}</code>
+                    <button @click="copySecret" class="btn btn-ghost btn-xs gap-1 text-[11px] font-semibold text-primary">
+                      <Icon :name="copiedSecret ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-rounded'" size="13" />
+                      {{ copiedSecret ? 'Copied' : 'Copy' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Verification Code Input -->
+            <form @submit.prevent="verifyAndEnable2fa" class="space-y-3 pt-2 border-t border-base-content/5">
+              <div class="form-control max-w-xs mx-auto">
+                <label class="label py-1 justify-center">
+                  <span class="label-text font-bold text-xs text-base-content/80">Enter 6-Digit Code from App</span>
+                </label>
+                <input 
+                  v-model="setupTotpCode" 
+                  type="text" 
+                  maxlength="6"
+                  placeholder="000000" 
+                  class="input input-sm rounded-lg bg-base-100 border-base-content/10 focus:border-primary font-mono text-center font-bold text-base tracking-[0.3em]"
+                  required
+                  autofocus
+                />
+              </div>
+
+              <div class="flex justify-center gap-2 pt-1">
+                <button type="button" @click="showSetupFlow = false" class="btn btn-ghost btn-sm rounded-lg">Cancel</button>
+                <button 
+                  type="submit" 
+                  class="btn btn-primary btn-sm rounded-lg shadow font-semibold gap-1"
+                  :disabled="loading2fa || setupTotpCode.trim().length < 6"
+                >
+                  <span v-if="loading2fa" class="loading loading-spinner loading-xs"></span>
+                  <Icon v-else name="material-symbols:verified-user-rounded" size="16" />
+                  Verify &amp; Activate 2FA
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Section: 2FA is Enabled -> Disable Flow -->
+        <div v-else class="space-y-4">
+          <div v-if="!showDisableFlow" class="p-4 rounded-lg bg-base-100/60 border border-base-content/10 flex items-center justify-between gap-4">
+            <div class="space-y-0.5">
+              <h4 class="font-bold text-xs text-base-content">Disable Two-Factor Authentication</h4>
+              <p class="text-[11px] text-base-content/60">Turn off TOTP code verification for admin account logins.</p>
+            </div>
+            <button 
+              @click="showDisableFlow = true" 
+              class="btn btn-outline btn-error btn-xs rounded-md font-semibold gap-1"
+            >
+              <Icon name="material-symbols:lock-open-rounded" size="14" />
+              Disable 2FA
+            </button>
+          </div>
+
+          <div v-else class="p-4 rounded-lg bg-base-100 border border-error/30 space-y-3">
+            <div class="flex items-center justify-between border-b border-base-content/10 pb-2">
+              <span class="font-bold text-xs text-error">Confirm Disabling 2FA</span>
+              <button @click="showDisableFlow = false" class="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content">
+                Cancel
+              </button>
+            </div>
+
+            <p class="text-xs text-base-content/70">
+              Enter your current 6-digit authenticator code to confirm disabling Two-Factor Authentication:
+            </p>
+
+            <form @submit.prevent="confirmDisable2fa" class="space-y-3">
+              <div class="form-control max-w-xs">
+                <input 
+                  v-model="disableCode" 
+                  type="text" 
+                  maxlength="6"
+                  placeholder="000000" 
+                  class="input input-sm rounded-lg bg-base-100 border-base-content/10 focus:border-error font-mono text-center font-bold text-base tracking-[0.3em]"
+                  required
+                  autofocus
+                />
+              </div>
+
+              <div class="flex gap-2">
+                <button 
+                  type="submit" 
+                  class="btn btn-error btn-sm rounded-lg shadow font-semibold gap-1 text-xs"
+                  :disabled="loading2fa || disableCode.trim().length < 6"
+                >
+                  <span v-if="loading2fa" class="loading loading-spinner loading-xs"></span>
+                  <Icon v-else name="material-symbols:delete-forever-rounded" size="16" />
+                  Confirm Disable
+                </button>
+                <button type="button" @click="showDisableFlow = false" class="btn btn-ghost btn-sm rounded-lg">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div v-if="errorMsg" class="alert alert-error text-xs py-2 rounded-lg">
+          <span>{{ errorMsg }}</span>
+        </div>
+
+        <div v-if="successMsg" class="alert alert-success text-xs py-2 rounded-lg">
+          <span>{{ successMsg }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -313,9 +504,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 
-const emit = defineEmits(['close', 'keys-updated', 'machines-updated'])
+const emit = defineEmits(['close', 'keys-updated', 'machines-updated', 'security-updated'])
 
-const activeTab = ref<'devices' | 'ssh'>('devices')
+const activeTab = ref<'devices' | 'ssh' | 'security'>('devices')
 
 // Machines & Device Approvals State
 const machines = ref<any[]>([])
@@ -479,8 +670,109 @@ const deleteKey = async (filename: string) => {
   }
 }
 
+// 2FA Security State & Actions
+const twoFactorEnabled = ref(false)
+const showSetupFlow = ref(false)
+const showDisableFlow = ref(false)
+const loading2fa = ref(false)
+const qrCodeUrl = ref('')
+const totpSecret = ref('')
+const setupTotpCode = ref('')
+const disableCode = ref('')
+const copiedSecret = ref(false)
+
+const fetch2faStatus = async () => {
+  try {
+    const res = await $fetch<any>('/api/auth/status')
+    twoFactorEnabled.value = !!res.twoFactorEnabled
+  } catch (err) {
+    console.error('Failed to fetch 2FA status:', err)
+  }
+}
+
+const startSetup2fa = async () => {
+  loading2fa.value = true
+  errorMsg.value = ''
+  successMsg.value = ''
+  try {
+    const res = await $fetch<any>('/api/2fa/setup')
+    qrCodeUrl.value = res.qrCodeUrl
+    totpSecret.value = res.secret
+    setupTotpCode.value = ''
+    showSetupFlow.value = true
+  } catch (err: any) {
+    errorMsg.value = err.data?.statusMessage || 'Failed to initialize 2FA setup'
+  } finally {
+    loading2fa.value = false
+  }
+}
+
+const copySecret = () => {
+  if (totpSecret.value) {
+    navigator.clipboard.writeText(totpSecret.value)
+    copiedSecret.value = true
+    setTimeout(() => {
+      copiedSecret.value = false
+    }, 2000)
+  }
+}
+
+const verifyAndEnable2fa = async () => {
+  if (!setupTotpCode.value || setupTotpCode.value.trim().length < 6) return
+  loading2fa.value = true
+  errorMsg.value = ''
+  successMsg.value = ''
+
+  try {
+    await $fetch('/api/2fa/enable', {
+      method: 'POST',
+      body: {
+        secret: totpSecret.value,
+        code: setupTotpCode.value.trim()
+      }
+    })
+
+    twoFactorEnabled.value = true
+    showSetupFlow.value = false
+    setupTotpCode.value = ''
+    successMsg.value = 'Two-Factor Authentication enabled successfully!'
+    emit('security-updated')
+  } catch (err: any) {
+    errorMsg.value = err.data?.statusMessage || 'Invalid verification code'
+  } finally {
+    loading2fa.value = false
+  }
+}
+
+const confirmDisable2fa = async () => {
+  if (!disableCode.value || disableCode.value.trim().length < 6) return
+  loading2fa.value = true
+  errorMsg.value = ''
+  successMsg.value = ''
+
+  try {
+    await $fetch('/api/2fa/disable', {
+      method: 'POST',
+      body: {
+        code: disableCode.value.trim()
+      }
+    })
+
+    twoFactorEnabled.value = false
+    showDisableFlow.value = false
+    disableCode.value = ''
+    successMsg.value = 'Two-Factor Authentication disabled successfully.'
+    emit('security-updated')
+  } catch (err: any) {
+    errorMsg.value = err.data?.statusMessage || 'Invalid 2FA code'
+  } finally {
+    loading2fa.value = false
+  }
+}
+
 onMounted(() => {
   fetchMachines()
   fetchKeys()
+  fetch2faStatus()
 })
 </script>

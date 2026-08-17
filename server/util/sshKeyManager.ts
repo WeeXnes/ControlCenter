@@ -59,7 +59,10 @@ export function setDefaultKeyName(name: string): boolean {
 
 export function getPublicKey(keyName: string): string | null {
   ensureSshKeyDirectory();
-  const privatePath = path.join(environment.paths.sshKeys, keyName);
+  const cleanName = path.basename(keyName).replace(/[^a-zA-Z0-9_\-]/g, '').trim();
+  if (!cleanName) return null;
+
+  const privatePath = path.join(environment.paths.sshKeys, cleanName);
   const pubPath = `${privatePath}.pub`;
 
   if (!fs.existsSync(privatePath)) return null;
@@ -83,7 +86,7 @@ export function getPublicKey(keyName: string): string | null {
       return pubContent;
     }
   } catch (err: any) {
-    console.error(`[SSHKeyManager] Failed to extract public key for ${keyName}:`, err.message);
+    console.error(`[SSHKeyManager] Failed to extract public key for ${cleanName}:`, err.message);
   }
 
   return null;
@@ -91,7 +94,7 @@ export function getPublicKey(keyName: string): string | null {
 
 export function generateSshKeyPair(name = 'default'): { filename: string; publicKey: string } {
   ensureSshKeyDirectory();
-  const cleanName = name.replace(/[^a-zA-Z0-9_\-\.]/g, '').trim() || 'default';
+  const cleanName = path.basename(name).replace(/[^a-zA-Z0-9_\-]/g, '').trim() || 'default';
   const targetPath = path.join(environment.paths.sshKeys, cleanName);
   const pubPath = `${targetPath}.pub`;
 

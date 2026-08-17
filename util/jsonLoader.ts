@@ -13,6 +13,8 @@ export function loadJsonFile() {
       password_hash: parsed.password_hash || '',
       jwt_secret: parsed.jwt_secret || randomBytes(32).toString('hex'),
       onboarded: parsed.onboarded ?? false,
+      two_factor_enabled: parsed.two_factor_enabled ?? false,
+      two_factor_secret: parsed.two_factor_secret || null,
       default_ssh_key: parsed.default_ssh_key || '',
       machines: Array.isArray(parsed.machines) ? parsed.machines : [],
       infrastructure: {
@@ -50,6 +52,8 @@ function createEmptySettingsIfNotExists() {
         password_hash: '',
         jwt_secret: randomBytes(32).toString('hex'),
         onboarded: false,
+        two_factor_enabled: false,
+        two_factor_secret: null,
         default_ssh_key: '',
         machines: [],
         infrastructure: {

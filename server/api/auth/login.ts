@@ -77,6 +77,22 @@ export default defineEventHandler(async (event) => {
 
   clearAttempts(ip);
 
+  // If Two-Factor Authentication is enabled, issue a short-lived partial token
+  if (environment.settings.two_factor_enabled && environment.settings.two_factor_secret) {
+    const tempToken = jwt.sign(
+      { userId: 'admin', isPartial: true },
+      environment.jwt_globals.secret,
+      { expiresIn: '5m' }
+    );
+
+    return {
+      success: true,
+      requires2fa: true,
+      tempToken,
+      message: 'Two-Factor Authentication required'
+    };
+  }
+
   const token = jwt.sign({ userId: 'admin' }, environment.jwt_globals.secret, {
     expiresIn: '30d'
   });

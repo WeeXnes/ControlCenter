@@ -22,13 +22,19 @@
         <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded"
               :class="connected ? 'bg-success/15 text-success border border-success/30' : 'bg-error/15 text-error border border-error/30'">
           <span class="w-2 h-2 rounded-full" :class="connected ? 'bg-success animate-ping' : 'bg-error'"></span>
-          {{ connected ? 'Connected' : 'Disconnected' }}
+          {{ connected ? 'Connected (Persistent)' : 'Disconnected' }}
         </span>
 
-        <button @click="reconnect" class="btn btn-ghost btn-xs rounded hover:bg-primary/10 text-primary gap-1">
+        <button @click="reconnect" class="btn btn-ghost btn-xs rounded hover:bg-primary/10 text-primary gap-1" title="Reconnect WebSocket">
           <Icon name="material-symbols:refresh-rounded" size="14" />
           Reconnect
         </button>
+
+        <button @click="resetSession" class="btn btn-ghost btn-xs rounded hover:bg-warning/10 text-warning gap-1" title="Kill background shell and start fresh session">
+          <Icon name="material-symbols:restart-alt-rounded" size="14" />
+          Reset Shell
+        </button>
+
         <button @click="clearTerminal" class="btn btn-ghost btn-xs rounded hover:bg-base-content/10 text-base-content/60">
           Clear
         </button>
@@ -152,7 +158,7 @@ const connectWebSocket = () => {
     return
   }
 
-  // Clear terminal screen and buffer from previous connections
+  // Reset terminal buffer for incoming stream/replay
   if (term) {
     try { term.reset() } catch {}
   }
@@ -167,8 +173,12 @@ const connectWebSocket = () => {
     socket = null
   }
 
+  const dims = fitAddon ? fitAddon.proposeDimensions() : null
+  const cols = dims?.cols || 80
+  const rows = dims?.rows || 24
+
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//${window.location.host}/ws/ssh?machineId=${encodeURIComponent(props.machineId)}`
+  const wsUrl = `${protocol}//${window.location.host}/ws/ssh?machineId=${encodeURIComponent(props.machineId)}&cols=${cols}&rows=${rows}`
 
   socket = new WebSocket(wsUrl)
 
@@ -184,7 +194,7 @@ const connectWebSocket = () => {
       const msg = JSON.parse(event.data)
       if (msg.data && term) {
         term.write(msg.data)
-        if (typeof msg.data === 'string' && (msg.data.includes('SSH Connection Established') || msg.data.includes('Connected'))) {
+        if (typeof msg.data === 'string' && (msg.data.includes('SSH Connection Established') || msg.data.includes('Resumed persistent SSH session') || msg.data.includes('Connected'))) {
           connected.value = true
           setTimeout(() => {
             fitTerminal()
@@ -200,9 +210,6 @@ const connectWebSocket = () => {
 
   socket.onclose = () => {
     connected.value = false
-    if (term) {
-      term.write('\r\n\x1b[31m[ControlCenter] SSH session disconnected.\x1b[0m\r\n')
-    }
   }
 
   socket.onerror = () => {
@@ -215,9 +222,20 @@ const connectWebSocket = () => {
 
 const reconnect = () => {
   if (term) {
-    term.clear()
+    term.reset()
   }
   connectWebSocket()
+}
+
+const resetSession = () => {
+  if (confirm('Reset this remote SSH shell? Any currently running processes in this session will be terminated.')) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      if (term) term.reset()
+      socket.send(JSON.stringify({ type: 'reset' }))
+    } else {
+      reconnect()
+    }
+  }
 }
 
 const clearTerminal = () => {
@@ -228,7 +246,7 @@ const clearTerminal = () => {
 
 watch(() => props.machineId, (newId, oldId) => {
   if (newId && newId !== 'undefined' && newId !== oldId && term) {
-    term.clear()
+    term.reset()
     connectWebSocket()
   }
 })

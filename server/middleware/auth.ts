@@ -16,7 +16,12 @@ export default defineEventHandler((event) => {
   }
 
   // Public API endpoints that don't require auth token
-  const publicPaths = ['/api/auth/login', '/api/auth/setup', '/api/auth/status'];
+  const publicPaths = [
+    '/api/auth/login',
+    '/api/auth/setup',
+    '/api/auth/status',
+    '/api/2fa/verify-login'
+  ];
   if (publicPaths.includes(path)) {
     return;
   }
@@ -40,9 +45,16 @@ export default defineEventHandler((event) => {
   }
 
   try {
-    const decoded = jwt.verify(token, environment.jwt_globals.secret);
+    const decoded = jwt.verify(token, environment.jwt_globals.secret) as any;
+    if (decoded && decoded.isPartial) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: 'Unauthorized: Incomplete authentication. Two-Factor verification required.'
+      });
+    }
     event.context.auth = decoded;
-  } catch (err) {
+  } catch (err: any) {
+    if (err.statusCode) throw err;
     throw createError({
       statusCode: 401,
       statusMessage: 'Unauthorized: Invalid or expired authentication token'

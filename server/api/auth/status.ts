@@ -23,8 +23,8 @@ export default defineEventHandler((event) => {
 
   if (token) {
     try {
-      jwt.verify(token, environment.jwt_globals.secret);
-      authenticated = true;
+      const decoded = jwt.verify(token, environment.jwt_globals.secret) as any;
+      authenticated = !decoded.isPartial;
     } catch {
       authenticated = false;
     }
@@ -35,6 +35,7 @@ export default defineEventHandler((event) => {
   return {
     onboarded,
     authenticated,
+    twoFactorEnabled: !!environment.settings?.two_factor_enabled,
     certFingerprint: getCertFingerprint(),
     httpsEnabled: isHttps
   };

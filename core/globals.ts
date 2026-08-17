@@ -55,6 +55,8 @@ export interface SettingsJsonFile {
   password_hash: string;
   jwt_secret: string;
   onboarded: boolean;
+  two_factor_enabled?: boolean;
+  two_factor_secret?: string | null;
   default_ssh_key?: string;
   machines: Machine[];
   infrastructure?: InfrastructureSettings;
@@ -83,6 +85,8 @@ export namespace environment {
     password_hash: '',
     jwt_secret: '',
     onboarded: false,
+    two_factor_enabled: false,
+    two_factor_secret: null,
     machines: [],
     infrastructure: {
       devices: [],

@@ -11,6 +11,9 @@ const PROTECTED_ENDPOINTS = [
   { method: 'GET', path: '/api/ssh-keys' },
   { method: 'POST', path: '/api/ssh-keys' },
   { method: 'DELETE', path: '/api/ssh-keys/testkey' },
+  { method: 'GET', path: '/api/2fa/setup' },
+  { method: 'POST', path: '/api/2fa/enable' },
+  { method: 'POST', path: '/api/2fa/disable' },
 ];
 
 // Machine-specific protected endpoints (use a valid UUID format)
