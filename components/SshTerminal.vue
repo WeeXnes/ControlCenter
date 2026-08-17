@@ -22,7 +22,7 @@
         <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded"
               :class="connected ? 'bg-success/15 text-success border border-success/30' : 'bg-error/15 text-error border border-error/30'">
           <span class="w-2 h-2 rounded-full" :class="connected ? 'bg-success animate-ping' : 'bg-error'"></span>
-          {{ connected ? 'Connected (Persistent)' : 'Disconnected' }}
+          {{ connected ? 'Connected' : 'Disconnected' }}
         </span>
 
         <button @click="reconnect" class="btn btn-ghost btn-xs rounded hover:bg-primary/10 text-primary gap-1" title="Reconnect WebSocket">
@@ -152,6 +152,7 @@ const initTerminal = async () => {
 
 const connectWebSocket = () => {
   if (!props.machineId || props.machineId === 'undefined') {
+    connected.value = false
     if (term) {
       term.write('\r\n\x1b[31m[ControlCenter] Waiting for valid machine selection...\x1b[0m\r\n')
     }
@@ -172,6 +173,8 @@ const connectWebSocket = () => {
     try { socket.close() } catch {}
     socket = null
   }
+
+  connected.value = false
 
   const dims = fitAddon ? fitAddon.proposeDimensions() : null
   const cols = dims?.cols || 80
@@ -194,16 +197,12 @@ const connectWebSocket = () => {
       const msg = JSON.parse(event.data)
       if (msg.data && term) {
         term.write(msg.data)
-        if (typeof msg.data === 'string' && (msg.data.includes('SSH Connection Established') || msg.data.includes('Resumed persistent SSH session') || msg.data.includes('Connected'))) {
-          connected.value = true
-          setTimeout(() => {
-            fitTerminal()
-          }, 100)
-        }
+        connected.value = true
       }
     } catch {
       if (term) {
         term.write(event.data)
+        connected.value = true
       }
     }
   }
@@ -221,6 +220,7 @@ const connectWebSocket = () => {
 }
 
 const reconnect = () => {
+  connected.value = false
   if (term) {
     term.reset()
   }
@@ -246,6 +246,7 @@ const clearTerminal = () => {
 
 watch(() => props.machineId, (newId, oldId) => {
   if (newId && newId !== 'undefined' && newId !== oldId && term) {
+    connected.value = false
     term.reset()
     connectWebSocket()
   }

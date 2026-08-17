@@ -73,15 +73,6 @@ export class SshSession {
         }));
       } catch {}
     }
-
-    if (this.status === 'connected') {
-      try {
-        peer.send(JSON.stringify({
-          type: 'status',
-          data: `\x1b[32m[ControlCenter] Resumed persistent SSH session for ${this.machineName}.\x1b[0m\r\n`
-        }));
-      } catch {}
-    }
   }
 
   public detachPeer(peer: any) {
