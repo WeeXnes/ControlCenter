@@ -135,68 +135,108 @@
     </div>
 
     <!-- Tab 1: Telemetry Gauges & Hardware Cards -->
-    <div v-if="activeTab === 'telemetry'" class="space-y-5">
-      <!-- Usage Gauges Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <UsageGauge 
-          title="CPU Usage"
-          label="Processor Load"
-          :percentage="telemetry?.cpuUsagePercent || 0"
-          icon="material-symbols:developer-board-outline-rounded"
-          color="primary"
-          detailLabel="Cores"
-          :detailValue="`${telemetry?.cpuCores || 1} Cores`"
-        />
-
-        <UsageGauge 
-          title="RAM Memory"
-          label="RAM Allocated"
-          :percentage="telemetry?.ramUsagePercent || 0"
-          icon="material-symbols:memory-rounded"
-          color="secondary"
-          detailLabel="Used / Total"
-          :detailValue="formatBytesPair(telemetry?.ramUsedBytes, telemetry?.ramTotalBytes)"
-        />
-
-        <UsageGauge 
-          title="Disk Storage"
-          label="Mount Usage"
-          :percentage="telemetry?.diskUsagePercent || 0"
-          icon="material-symbols:hard-drive-outline-rounded"
-          color="accent"
-          detailLabel="Used / Total"
-          :detailValue="formatBytesPair(telemetry?.diskUsedBytes, telemetry?.diskTotalBytes)"
-        />
+    <div v-if="activeTab === 'telemetry'" class="space-y-4">
+      <!-- View Style Switcher Bar -->
+      <div class="flex items-center justify-between gap-4 px-1">
+        <div class="flex items-center gap-2">
+          <Icon name="material-symbols:analytics-outline-rounded" size="18" class="text-primary" />
+          <span class="text-xs font-bold text-base-content/80 uppercase tracking-wider">Performance Monitor</span>
+        </div>
+        
+        <div class="join bg-base-200/90 border border-base-content/10 p-0.5 rounded-lg shadow-sm">
+          <button 
+            @click="telemetryViewStyle = 'taskmanager'"
+            class="join-item btn btn-xs rounded-md transition-all gap-1.5 font-semibold text-xs"
+            :class="telemetryViewStyle === 'taskmanager' ? 'btn-primary shadow text-primary-content' : 'btn-ghost text-base-content/70 hover:text-base-content'"
+            title="Windows Task Manager Real-Time Charts & Cores Breakdown"
+          >
+            <Icon name="material-symbols:monitoring-rounded" size="14" />
+            Task Manager
+          </button>
+          
+          <button 
+            @click="telemetryViewStyle = 'gauges'"
+            class="join-item btn btn-xs rounded-md transition-all gap-1.5 font-semibold text-xs"
+            :class="telemetryViewStyle === 'gauges' ? 'btn-primary shadow text-primary-content' : 'btn-ghost text-base-content/70 hover:text-base-content'"
+            title="Classic Radial Gauges & Overview"
+          >
+            <Icon name="material-symbols:speed-rounded" size="14" />
+            Classic Gauges
+          </button>
+        </div>
       </div>
 
-      <!-- Quick Metrics Summary -->
-      <div class="card bg-base-200/50 border border-base-content/10 p-5 rounded-xl space-y-3">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-            <Icon name="material-symbols:tune-rounded" size="18" />
-          </div>
-          <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">Host Overview</h3>
+      <!-- 1. Task Manager View Mode -->
+      <TaskManagerTelemetry 
+        v-if="telemetryViewStyle === 'taskmanager'"
+        :machine="machine"
+        :telemetry="telemetry"
+      />
+
+      <!-- 2. Classic Gauges View Mode -->
+      <div v-else class="space-y-5">
+        <!-- Usage Gauges Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <UsageGauge 
+            title="CPU Usage"
+            label="Processor Load"
+            :percentage="telemetry?.cpuUsagePercent || 0"
+            icon="material-symbols:developer-board-outline-rounded"
+            color="primary"
+            detailLabel="Cores"
+            :detailValue="`${telemetry?.cpuCores || 1} Cores`"
+          />
+
+          <UsageGauge 
+            title="RAM Memory"
+            label="RAM Allocated"
+            :percentage="telemetry?.ramUsagePercent || 0"
+            icon="material-symbols:memory-rounded"
+            color="secondary"
+            detailLabel="Used / Total"
+            :detailValue="formatBytesPair(telemetry?.ramUsedBytes, telemetry?.ramTotalBytes)"
+          />
+
+          <UsageGauge 
+            title="Disk Storage"
+            label="Mount Usage"
+            :percentage="telemetry?.diskUsagePercent || 0"
+            icon="material-symbols:hard-drive-outline-rounded"
+            color="accent"
+            detailLabel="Used / Total"
+            :detailValue="formatBytesPair(telemetry?.diskUsedBytes, telemetry?.diskTotalBytes)"
+          />
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
-            <span class="text-base-content/60 font-medium">Hostname</span>
-            <p class="font-bold text-sm text-base-content truncate">{{ telemetry?.hostname || machine.name }}</p>
+        <!-- Quick Metrics Summary -->
+        <div class="card bg-base-200/50 border border-base-content/10 p-5 rounded-xl space-y-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+              <Icon name="material-symbols:tune-rounded" size="18" />
+            </div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-base-content/80">Host Overview</h3>
           </div>
 
-          <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
-            <span class="text-base-content/60 font-medium">Tunnel</span>
-            <p class="font-bold text-sm text-primary font-mono truncate">WSS</p>
-          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
+              <span class="text-base-content/60 font-medium">Hostname</span>
+              <p class="font-bold text-sm text-base-content truncate">{{ telemetry?.hostname || machine.name }}</p>
+            </div>
 
-          <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
-            <span class="text-base-content/60 font-medium">SSH User &amp; Port</span>
-            <p class="font-bold text-sm text-base-content font-mono truncate">{{ machine.sshUser || 'root' }}@{{ machine.ip }}:{{ machine.sshPort || 22 }}</p>
-          </div>
+            <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
+              <span class="text-base-content/60 font-medium">Tunnel</span>
+              <p class="font-bold text-sm text-primary font-mono truncate">WSS</p>
+            </div>
 
-          <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
-            <span class="text-base-content/60 font-medium">Last Sync</span>
-            <p class="font-bold text-sm text-base-content font-mono">{{ telemetry?.timestamp ? new Date(telemetry.timestamp).toLocaleTimeString() : 'N/A' }}</p>
+            <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
+              <span class="text-base-content/60 font-medium">SSH User &amp; Port</span>
+              <p class="font-bold text-sm text-base-content font-mono truncate">{{ machine.sshUser || 'root' }}@{{ machine.ip }}:{{ machine.sshPort || 22 }}</p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-base-100/60 border border-base-content/5 space-y-1">
+              <span class="text-base-content/60 font-medium">Last Sync</span>
+              <p class="font-bold text-sm text-base-content font-mono">{{ telemetry?.timestamp ? new Date(telemetry.timestamp).toLocaleTimeString() : 'N/A' }}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -290,7 +330,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 const props = defineProps<{
   machine: any
@@ -299,6 +339,23 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits(['edit-machine', 'delete-machine', 'change-tab'])
+
+const telemetryViewStyle = ref<'taskmanager' | 'gauges'>('taskmanager')
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('controlcenter_telemetry_view')
+    if (saved === 'taskmanager' || saved === 'gauges') {
+      telemetryViewStyle.value = saved
+    }
+  }
+})
+
+watch(telemetryViewStyle, (newVal) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('controlcenter_telemetry_view', newVal)
+  }
+})
 
 const activeTab = computed({
   get: () => (props.currentTab && ['telemetry', 'terminal', 'info'].includes(props.currentTab)) ? props.currentTab as 'telemetry' | 'terminal' | 'info' : 'telemetry',

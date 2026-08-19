@@ -1,5 +1,14 @@
 import { randomUUID } from 'crypto';
 
+export interface DiskStats {
+  name?: string;
+  mountPoint?: string;
+  totalBytes?: number;
+  usedBytes?: number;
+  usagePercent?: number;
+  driveType?: string;
+}
+
 export interface TelemetryPayload {
   hostname?: string;
   userName?: string;
@@ -7,12 +16,15 @@ export interface TelemetryPayload {
   cpuModel?: string;
   cpuCores?: number;
   cpuUsagePercent?: number;
+  cpuCoreUsages?: number[];
   ramTotalBytes?: number;
   ramUsedBytes?: number;
+  ramAvailableBytes?: number;
   ramUsagePercent?: number;
   diskTotalBytes?: number;
   diskUsedBytes?: number;
   diskUsagePercent?: number;
+  disks?: DiskStats[];
   uptimeSeconds?: number;
   ipAddresses?: string[];
   timestamp?: string;
@@ -26,6 +38,24 @@ interface DaemonConnection {
 
 export function normalizeTelemetry(raw: any): TelemetryPayload {
   if (!raw || typeof raw !== 'object') return {};
+  
+  const rawCoreUsages = raw.cpuCoreUsages || raw.CpuCoreUsages;
+  const cpuCoreUsages = Array.isArray(rawCoreUsages)
+    ? rawCoreUsages.map((v: any) => Number(v ?? 0))
+    : undefined;
+
+  const rawDisks = raw.disks || raw.Disks;
+  const disks = Array.isArray(rawDisks)
+    ? rawDisks.map((d: any) => ({
+        name: d.name || d.Name || '',
+        mountPoint: d.mountPoint || d.MountPoint || '',
+        totalBytes: Number(d.totalBytes ?? d.TotalBytes ?? 0),
+        usedBytes: Number(d.usedBytes ?? d.UsedBytes ?? 0),
+        usagePercent: Number(d.usagePercent ?? d.UsagePercent ?? 0),
+        driveType: d.driveType || d.DriveType || ''
+      }))
+    : undefined;
+
   return {
     hostname: raw.hostname || raw.Hostname || '',
     userName: raw.userName || raw.username || raw.UserName || raw.user || raw.User || '',
@@ -33,12 +63,15 @@ export function normalizeTelemetry(raw: any): TelemetryPayload {
     cpuModel: raw.cpuModel || raw.CpuModel || '',
     cpuCores: Number(raw.cpuCores ?? raw.CpuCores ?? 1),
     cpuUsagePercent: Number(raw.cpuUsagePercent ?? raw.CpuUsagePercent ?? 0),
+    cpuCoreUsages,
     ramTotalBytes: Number(raw.ramTotalBytes ?? raw.RamTotalBytes ?? 0),
     ramUsedBytes: Number(raw.ramUsedBytes ?? raw.RamUsedBytes ?? 0),
+    ramAvailableBytes: Number(raw.ramAvailableBytes ?? raw.RamAvailableBytes ?? 0),
     ramUsagePercent: Number(raw.ramUsagePercent ?? raw.RamUsagePercent ?? 0),
     diskTotalBytes: Number(raw.diskTotalBytes ?? raw.DiskTotalBytes ?? 0),
     diskUsedBytes: Number(raw.diskUsedBytes ?? raw.DiskUsedBytes ?? 0),
     diskUsagePercent: Number(raw.diskUsagePercent ?? raw.DiskUsagePercent ?? 0),
+    disks,
     uptimeSeconds: Number(raw.uptimeSeconds ?? raw.UptimeSeconds ?? 0),
     ipAddresses: Array.isArray(raw.ipAddresses || raw.IpAddresses)
       ? (raw.ipAddresses || raw.IpAddresses)
