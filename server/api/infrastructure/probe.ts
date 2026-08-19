@@ -1,6 +1,7 @@
 import { environment } from '~/core/globals';
 import { loadJsonFile, saveJsonFile } from '~/util/jsonLoader';
 import { executeProbe } from '~/server/util/probeHelper';
+import { notifyServiceStateChange } from '~/server/util/discordNotifier';
 
 export default defineEventHandler(async (event) => {
   assertMethod(event, 'POST');
@@ -28,10 +29,28 @@ export default defineEventHandler(async (event) => {
     if (environment.settings.infrastructure?.nodeServices?.[nodeId]) {
       const srv = environment.settings.infrastructure.nodeServices[nodeId].find((s) => s.id === serviceId);
       if (srv) {
-        srv.status = result.reachable ? 'online' : 'offline';
+        const prevStatus = srv.status;
+        const newStatus = result.reachable ? 'online' : 'offline';
+
+        srv.status = newStatus;
         srv.latencyMs = result.latencyMs;
         srv.lastChecked = new Date().toISOString();
         saveJsonFile();
+
+        // If status changed, send Discord alert
+        if (prevStatus && prevStatus !== newStatus && prevStatus !== 'unknown' && prevStatus !== 'checking') {
+          // Find node name
+          const machine = environment.settings.machines.find(m => m.id === nodeId);
+          const dev = environment.settings.infrastructure.devices.find(d => d.id === nodeId);
+          const nodeName = machine?.name || dev?.name || `Node ${nodeId.substring(0, 8)}`;
+
+          notifyServiceStateChange(
+            { id: srv.id, name: srv.name, port: srv.port, protocol: srv.protocol },
+            nodeName,
+            result.reachable,
+            result.latencyMs
+          ).catch(() => {});
+        }
       }
     }
   }

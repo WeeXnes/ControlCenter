@@ -70,6 +70,20 @@
               placeholder="e.g. 192.168.1.100"
               class="input input-sm rounded-lg bg-base-100 border-base-content/10 focus:border-primary font-mono"
             />
+            <!-- Detected IP chips -->
+            <div v-if="detectedIps.length > 1" class="flex items-center gap-1.5 flex-wrap pt-1.5">
+              <span class="text-[10px] text-base-content/50 font-medium">Detected:</span>
+              <button 
+                v-for="dip in detectedIps" 
+                :key="dip" 
+                type="button" 
+                @click="form.ip = dip"
+                class="badge badge-xs gap-1 font-mono cursor-pointer transition-all"
+                :class="form.ip === dip ? 'badge-primary font-bold' : 'badge-ghost border-base-content/10 hover:border-primary/40'"
+              >
+                {{ dip }}
+              </button>
+            </div>
           </div>
 
           <div class="form-control">
@@ -278,6 +292,7 @@ const availableKeys = ref<string[]>([])
 const copied = ref(false)
 const showApiKey = ref(false)
 const serverCertFingerprint = ref('')
+const detectedIps = ref<string[]>([])
 
 const form = reactive({
   id: '',
@@ -366,6 +381,15 @@ onMounted(async () => {
     form.sshAuthType = props.initialData.sshAuthType || 'key'
     form.sshPassword = props.initialData.sshPassword || ''
     form.sshKeyFile = props.initialData.sshKeyFile || ''
+
+    if (form.id) {
+      try {
+        const stats = await $fetch<any>(`/api/machines/${form.id}/stats`)
+        if (Array.isArray(stats?.ipAddresses)) {
+          detectedIps.value = stats.ipAddresses
+        }
+      } catch {}
+    }
   } else {
     generateRandomToken()
   }

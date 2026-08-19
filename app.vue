@@ -32,6 +32,15 @@
               <Icon name="material-symbols:bubble-chart-outline-rounded" size="15" />
               Infrastructure Graph
             </NuxtLink>
+
+            <NuxtLink 
+              to="/notifications" 
+              class="px-3 py-1 rounded-md transition-all flex items-center gap-1.5"
+              :class="route.path === '/notifications' ? 'bg-primary text-primary-content shadow-sm' : 'text-base-content/70 hover:text-base-content hover:bg-base-content/5'"
+            >
+              <Icon name="material-symbols:notifications-active-rounded" size="15" />
+              Alert Rules
+            </NuxtLink>
           </div>
         </div>
 

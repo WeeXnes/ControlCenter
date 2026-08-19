@@ -23,6 +23,28 @@ export function loadJsonFile() {
         customLinks: Array.isArray(parsed.infrastructure?.customLinks) ? parsed.infrastructure.customLinks : [],
         nodePositions: parsed.infrastructure?.nodePositions && typeof parsed.infrastructure.nodePositions === 'object' ? parsed.infrastructure.nodePositions : {},
         disabledNodes: Array.isArray(parsed.infrastructure?.disabledNodes) ? parsed.infrastructure.disabledNodes : []
+      },
+      notifications: {
+        discord_webhook_url: parsed.notifications?.discord_webhook_url || '',
+        discord_enabled: parsed.notifications?.discord_enabled ?? false,
+        cooldown_minutes: Number(parsed.notifications?.cooldown_minutes ?? 5),
+        rules: Array.isArray(parsed.notifications?.rules)
+          ? parsed.notifications.rules.map((r: any) => ({
+              id: r.id || randomBytes(8).toString('hex'),
+              name: r.name || 'Untitled Rule',
+              enabled: r.enabled ?? true,
+              targetType: r.targetType || 'all_machines',
+              targetId: r.targetId || undefined,
+              targetName: r.targetName || undefined,
+              triggerType: r.triggerType || 'status',
+              statusCondition: r.statusCondition || 'both',
+              metricType: r.metricType || 'cpu',
+              thresholdPercent: r.thresholdPercent !== undefined ? Number(r.thresholdPercent) : 80,
+              customWebhookUrl: r.customWebhookUrl || undefined,
+              cooldownMinutes: r.cooldownMinutes !== undefined ? Number(r.cooldownMinutes) : undefined,
+              createdAt: r.createdAt || new Date().toISOString()
+            }))
+          : []
       }
     };
 
@@ -62,6 +84,12 @@ function createEmptySettingsIfNotExists() {
           customLinks: [],
           nodePositions: {},
           disabledNodes: []
+        },
+        notifications: {
+          discord_webhook_url: '',
+          discord_enabled: false,
+          cooldown_minutes: 5,
+          rules: []
         }
       };
       fs.writeFileSync(environment.files.settings, JSON.stringify(emptySettings, null, 2), 'utf-8');

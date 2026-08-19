@@ -80,19 +80,42 @@ export function normalizeTelemetry(raw: any): TelemetryPayload {
   };
 }
 
+import { environment } from '~/core/globals';
+import { loadJsonFile } from '~/util/jsonLoader';
+import { notifyMachineStateChange, checkTelemetryRules, notifyTelemetryThreshold } from './discordNotifier';
+
 class DaemonManager {
   private activeConnections = new Map<string, DaemonConnection>();
   private telemetryCache = new Map<string, { data: TelemetryPayload; lastSeen: string }>();
   private pendingActions = new Map<string, { resolve: (res: any) => void; reject: (err: any) => void; timer: NodeJS.Timeout }>();
 
+  private getMachineInfo(machineId: string): { id: string; name: string; ip: string } {
+    if (!environment.settings || !environment.settings.jwt_secret) {
+      loadJsonFile();
+    }
+    const found = environment.settings?.machines?.find(m => m.id === machineId);
+    const cached = this.telemetryCache.get(machineId)?.data;
+    return {
+      id: machineId,
+      name: found?.name || cached?.hostname || `Node ${machineId.substring(0, 8)}`,
+      ip: found?.ip || cached?.ipAddresses?.[0] || 'Unknown IP'
+    };
+  }
+
   public registerDaemon(machineId: string, peer: any) {
     const now = new Date().toISOString();
+    const wasOffline = !this.activeConnections.has(machineId);
     this.activeConnections.set(machineId, {
       peer,
       connectedAt: now,
       lastSeen: now
     });
     console.log(`[DaemonManager] Node connected: ${machineId}`);
+
+    if (wasOffline) {
+      const machine = this.getMachineInfo(machineId);
+      notifyMachineStateChange(machine, true).catch(() => {});
+    }
   }
 
   public unregisterDaemon(machineId: string, peer?: any) {
@@ -103,6 +126,8 @@ class DaemonManager {
     if (!peer || existing.peer === peer) {
       this.activeConnections.delete(machineId);
       console.log(`[DaemonManager] Node disconnected: ${machineId}`);
+      const machine = this.getMachineInfo(machineId);
+      notifyMachineStateChange(machine, false).catch(() => {});
     }
   }
 
@@ -128,6 +153,13 @@ class DaemonManager {
       },
       lastSeen: now
     });
+
+    // Check notification threshold rules
+    try {
+      const machine = this.getMachineInfo(machineId);
+      checkTelemetryRules(machine, normalized).catch(() => {});
+    } catch {}
+
     return normalized;
   }
 

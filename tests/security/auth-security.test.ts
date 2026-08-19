@@ -15,6 +15,12 @@ const PROTECTED_ENDPOINTS = [
   { method: 'POST', path: '/api/2fa/enable' },
   { method: 'POST', path: '/api/2fa/disable' },
   { method: 'POST', path: '/api/auth/change-password' },
+  { method: 'GET', path: '/api/notifications/settings' },
+  { method: 'PUT', path: '/api/notifications/settings' },
+  { method: 'POST', path: '/api/notifications/test-webhook' },
+  { method: 'GET', path: '/api/notifications/rules' },
+  { method: 'POST', path: '/api/notifications/rules' },
+  { method: 'DELETE', path: '/api/notifications/rules' },
 ];
 
 // Machine-specific protected endpoints (use a valid UUID format)

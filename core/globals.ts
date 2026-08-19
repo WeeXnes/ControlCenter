@@ -51,6 +51,29 @@ export interface Machine {
   lastSeen?: string;
 }
 
+export interface NotificationRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  targetType: 'all_machines' | 'machine' | 'all_services' | 'service';
+  targetId?: string; // machine ID or service ID
+  targetName?: string; // display name for target
+  triggerType: 'status' | 'usage'; // status (online/offline) or usage (cpu/ram/disk)
+  statusCondition?: 'both' | 'offline_only' | 'online_only'; // for status
+  metricType?: 'cpu' | 'ram' | 'disk'; // for usage
+  thresholdPercent?: number; // 1-100 for usage triggers
+  customWebhookUrl?: string; // optional per-rule override
+  cooldownMinutes?: number; // per-rule cooldown minutes
+  createdAt: string;
+}
+
+export interface NotificationSettings {
+  discord_webhook_url?: string;
+  discord_enabled?: boolean;
+  cooldown_minutes?: number; // global default cooldown
+  rules: NotificationRule[];
+}
+
 export interface SettingsJsonFile {
   password_hash: string;
   jwt_secret: string;
@@ -60,6 +83,7 @@ export interface SettingsJsonFile {
   default_ssh_key?: string;
   machines: Machine[];
   infrastructure?: InfrastructureSettings;
+  notifications?: NotificationSettings;
 }
 
 export namespace environment {
@@ -93,6 +117,12 @@ export namespace environment {
       nodeServices: {},
       customLinks: [],
       nodePositions: {}
+    },
+    notifications: {
+      discord_webhook_url: '',
+      discord_enabled: false,
+      cooldown_minutes: 5,
+      rules: []
     }
   };
 }

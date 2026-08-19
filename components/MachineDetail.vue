@@ -15,7 +15,29 @@
               <span class="w-2 h-2 rounded-full" :class="telemetry?.online ? 'bg-success animate-ping' : 'bg-error'"></span>
               {{ telemetry?.online ? 'WSS Connected' : 'Offline' }}
             </span>
-            <span class="font-mono text-xs px-2 py-0.5 rounded bg-base-300/70 text-base-content/70">
+            <!-- Switchable IP Badge -->
+            <div v-if="telemetry?.ipAddresses && telemetry.ipAddresses.length > 1" class="dropdown dropdown-bottom">
+              <label tabindex="0" class="cursor-pointer font-mono text-xs px-2 py-0.5 rounded bg-base-300/80 hover:bg-base-300 text-base-content/90 border border-base-content/10 flex items-center gap-1 transition-all" title="Click to switch active IP address">
+                IP: {{ machine.ip }}
+                <Icon name="material-symbols:expand-more-rounded" size="14" class="text-base-content/50" />
+              </label>
+              <ul tabindex="0" class="dropdown-content z-30 menu p-2 shadow-2xl bg-base-200 border border-base-content/10 rounded-xl w-64 space-y-1 mt-1 text-xs backdrop-blur-xl">
+                <li class="menu-title text-[10px] uppercase font-bold text-base-content/50 px-2 py-1 flex justify-between items-center">
+                  <span>Switch Used IP Address</span>
+                </li>
+                <li v-for="detectedIp in telemetry.ipAddresses" :key="detectedIp">
+                  <button 
+                    @click="switchMachineIp(detectedIp)"
+                    class="flex items-center justify-between font-mono py-1.5 px-2 rounded-lg text-xs"
+                    :class="detectedIp === machine.ip ? 'active bg-primary text-primary-content font-bold' : 'hover:bg-base-content/5 text-base-content'"
+                  >
+                    <span>{{ detectedIp }}</span>
+                    <span v-if="detectedIp === machine.ip" class="badge badge-xs badge-success font-sans">Active</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <span v-else class="font-mono text-xs px-2 py-0.5 rounded bg-base-300/70 text-base-content/70">
               IP: {{ machine.ip }}
             </span>
           </div>
@@ -284,11 +306,32 @@
         </div>
 
         <div class="space-y-2">
-          <h4 class="font-bold text-[11px] uppercase tracking-wider text-secondary">Network Interfaces</h4>
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-[11px] uppercase tracking-wider text-secondary">Network Interfaces</h4>
+            <span class="text-[10px] text-base-content/50 font-mono">{{ (telemetry?.ipAddresses || [machine.ip]).length }} detected</span>
+          </div>
           <div class="space-y-1.5">
-            <div v-for="(ip, idx) in (telemetry?.ipAddresses || [machine.ip])" :key="idx" class="flex justify-between py-1.5 border-b border-base-content/5 font-mono text-xs">
-              <span class="text-base-content/60">IPv4 Address #{{ idx + 1 }}</span>
-              <span class="font-bold text-primary">{{ ip }}</span>
+            <div 
+              v-for="(ip, idx) in (telemetry?.ipAddresses || [machine.ip])" 
+              :key="idx" 
+              class="flex items-center justify-between py-1.5 px-2.5 rounded-lg border border-base-content/5 bg-base-100/50 font-mono text-xs hover:border-base-content/15 transition-all"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-base-content/40 text-[10px]">#{{ idx + 1 }}</span>
+                <span class="font-bold truncate" :class="ip === machine.ip ? 'text-primary' : 'text-base-content/90'">{{ ip }}</span>
+                <span v-if="ip === machine.ip" class="badge badge-primary badge-xs font-sans font-bold">Active Used IP</span>
+              </div>
+              <button 
+                v-if="ip !== machine.ip"
+                @click="switchMachineIp(ip)"
+                class="btn btn-ghost btn-xs text-primary hover:bg-primary/10 font-sans gap-1 font-semibold rounded-md"
+                :disabled="switchingIp === ip"
+                title="Switch active management &amp; SSH IP to this address"
+              >
+                <span v-if="switchingIp === ip" class="loading loading-spinner loading-xs"></span>
+                <Icon v-else name="material-symbols:swap-horiz-rounded" size="14" />
+                Set as Used IP
+              </button>
             </div>
           </div>
         </div>
@@ -338,20 +381,53 @@ const props = defineProps<{
   currentTab?: string
 }>()
 
-const emit = defineEmits(['edit-machine', 'delete-machine', 'change-tab'])
+const emit = defineEmits(['edit-machine', 'delete-machine', 'change-tab', 'machine-updated'])
 
-const telemetryViewStyle = ref<'taskmanager' | 'gauges'>('taskmanager')
+const preferredTelemetryCookie = useCookie<'taskmanager' | 'gauges'>('preferred_telemetry_view', {
+  default: () => 'taskmanager',
+  maxAge: 60 * 60 * 24 * 365,
+  sameSite: 'lax',
+  path: '/'
+})
+
+const telemetryViewStyle = ref<'taskmanager' | 'gauges'>(
+  preferredTelemetryCookie.value === 'gauges' || preferredTelemetryCookie.value === 'taskmanager'
+    ? preferredTelemetryCookie.value
+    : 'taskmanager'
+)
+const switchingIp = ref<string | null>(null)
+
+const switchMachineIp = async (newIp: string) => {
+  if (props.machine.ip === newIp) return
+  switchingIp.value = newIp
+  try {
+    await $fetch(`/api/machines/${props.machine.id}`, {
+      method: 'PUT',
+      body: { ip: newIp }
+    })
+    props.machine.ip = newIp
+    emit('machine-updated', { ...props.machine, ip: newIp })
+  } catch (err: any) {
+    alert(`Failed to switch machine IP: ${err.message}`)
+  } finally {
+    switchingIp.value = null
+  }
+}
 
 onMounted(() => {
-  if (typeof window !== 'undefined') {
+  if (preferredTelemetryCookie.value && (preferredTelemetryCookie.value === 'taskmanager' || preferredTelemetryCookie.value === 'gauges')) {
+    telemetryViewStyle.value = preferredTelemetryCookie.value
+  } else if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('controlcenter_telemetry_view')
     if (saved === 'taskmanager' || saved === 'gauges') {
       telemetryViewStyle.value = saved
+      preferredTelemetryCookie.value = saved
     }
   }
 })
 
 watch(telemetryViewStyle, (newVal) => {
+  preferredTelemetryCookie.value = newVal
   if (typeof window !== 'undefined') {
     localStorage.setItem('controlcenter_telemetry_view', newVal)
   }

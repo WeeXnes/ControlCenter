@@ -21,6 +21,7 @@
         @change-tab="handleTabChange"
         @edit-machine="openEditModal"
         @delete-machine="handleDeleteMachine"
+        @machine-updated="handleMachineUpdated"
       />
 
       <!-- Blank State (No machine selected / empty inventory) -->
@@ -227,6 +228,13 @@ const handleDeleteMachine = async (id: string) => {
     machines.value = list
   } catch (err: any) {
     alert(`Failed to delete machine: ${err.message}`)
+  }
+}
+
+const handleMachineUpdated = (updated: any) => {
+  const index = machines.value.findIndex(m => m.id === updated.id)
+  if (index !== -1) {
+    machines.value[index] = { ...machines.value[index], ...updated }
   }
 }
 
