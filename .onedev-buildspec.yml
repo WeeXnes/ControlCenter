@@ -1,6 +1,8 @@
-version: 43
+version: 59
 jobs:
 - name: Build & Package Release Tarball
+  executeInSandbox: false
+  jobExecutor: Builder
   steps:
   - type: CheckoutStep
     name: checkout code
@@ -14,11 +16,13 @@ jobs:
     name: Extract Version
     runInContainer: false
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         echo "Extracting version from package.json..."
         grep -oP '"version":\s*"\K[^"]+' package.json > version.txt || echo "1.0.0" > version.txt
         echo "Version extracted: $(cat version.txt)"
+    runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
     optional: false
@@ -26,7 +30,8 @@ jobs:
     name: Build and Package Release Tarball
     runInContainer: false
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         VERSION=$(cat version.txt)
         PKG_NAME="controlcenter-web"
@@ -69,6 +74,7 @@ jobs:
 
         echo "Package created: ${RELEASE_DIR}/${TARBALL_NAME}"
         rm -rf "$BUILD_DIR"
+    runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
     optional: false
@@ -87,7 +93,8 @@ jobs:
     name: check if tag exists
     runInContainer: false
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         version=$(cat version.txt)
         echo "Checking if tag '$version' exists on origin..."
@@ -99,26 +106,29 @@ jobs:
             echo "Tag '$version' does not exist. Proceeding to create tag."
             exit 0
         fi
+    runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
     optional: false
   - type: CreateTagStep
     name: create tag
     tagName: '@file:version.txt@'
-    tagMessage: 'Release @file:version.txt@'
+    tagMessage: Release @file:version.txt@
     condition: SUCCESSFUL
     optional: false
-  jobExecutor: Builder
   triggers:
   - type: BranchUpdateTrigger
     userMatch: anyone
   - type: PullRequestUpdateTrigger
   retryCondition: never
-  maxRetries: 3
+  maxAttempts: 4
   retryDelay: 30
+  includeUpstreamWhenRebuild: false
+  includeDownstreamWhenRebuild: false
   timeout: 14400
-
 - name: Release Stable AUR
+  executeInSandbox: false
+  jobExecutor: Builder
   steps:
   - type: CheckoutStep
     name: checkout code
@@ -137,7 +147,8 @@ jobs:
     name: Update Stable AUR Package
     runInContainer: false
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         repo_url="ssh://aur@@aur.archlinux.org/controlcenter.git"
         repo_dir="controlcenter"
@@ -155,15 +166,17 @@ jobs:
           git commit -m "Automatically updated version to ${version}"
           git push
         )
+    runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
     optional: false
-  jobExecutor: Builder
   triggers:
   - type: TagCreateTrigger
     branches: master
     projects: ControlCenter
   retryCondition: never
-  maxRetries: 3
+  maxAttempts: 4
   retryDelay: 30
+  includeUpstreamWhenRebuild: false
+  includeDownstreamWhenRebuild: false
   timeout: 14400
