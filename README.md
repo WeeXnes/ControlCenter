@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="public/wicon.png" width="96" alt="" />
   <h1>ControlCenter</h1>
   <p>Self-hosted, database-free infrastructure and server management dashboard with zero-trust node telemetry.</p>
   <p>
